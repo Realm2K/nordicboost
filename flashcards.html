@@ -11,25 +11,27 @@
 <nav class="nav">
   <span class="nav__brand">⚡ NORDICBOOST</span>
   <div class="nav__links">
-    <a href="index.html">Головна</a>
-    <a href="flashcards.html" class="active">Картки</a>
-    <a href="quiz.html">Квіз</a>
-    <a href="blast.html">Word Blast</a>
+    <a href="index.html" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" class="active" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
   </div>
 </nav>
 
 <main class="container">
-  <h1 class="page-title">🃏 Картки для вивчення</h1>
-  <p class="page-sub">Тапни на картку, щоб перевернути. Датська → Українська.</p>
+  <h1 class="page-title">🃏 <span data-i18n="nav.cards">Картки</span></h1>
+  <p class="page-sub" data-i18n="fc.sub">Тапни картку, щоб перевернути. Оціни себе чесно — система запам'ятає!</p>
 
-  <!-- Фільтр: усі слова / тільки невивчені -->
+  <!-- Фільтри режиму -->
   <div class="flash-controls">
-    <label class="muted">Фільтр:</label>
+    <label class="muted" data-i18n="fc.filter">Фільтр:</label>
     <select id="filterSelect" class="btn btn--ghost btn--small" style="color:var(--text)">
-      <option value="all">Усі слова</option>
-      <option value="unlearned">Тільки невивчені</option>
+      <option value="smart" data-i18n="fc.smart">🎯 Розумний режим</option>
+      <option value="all" data-i18n="fc.all">Усі слова</option>
+      <option value="unlearned" data-i18n="fc.unlearned">Тільки невивчені</option>
     </select>
-    <button class="btn btn--ghost btn--small" id="btnShuffle">🔀 Перемішати</button>
+    <button class="btn btn--ghost btn--small" id="btnShuffle" data-i18n="fc.shuffle">🔀 Перемішати</button>
   </div>
 
   <!-- Картка -->
@@ -37,39 +39,64 @@
     <div class="flashcard__inner">
       <div class="flashcard__face flashcard__face--front">
         <div class="flashcard__word" id="cardFront">—</div>
-        <button class="btn btn--small" id="btnSpeak">🔊 Озвучити</button>
-        <div class="flashcard__hint">Тапни, щоб побачити переклад</div>
+        <button class="btn btn--small" id="btnSpeak" data-i18n="fc.speak">🔊 Озвучити</button>
+        <div class="flashcard__hint" data-i18n="fc.flip_hint">Тапни, щоб побачити переклад</div>
       </div>
       <div class="flashcard__face flashcard__face--back">
         <div class="flashcard__word" id="cardBack">—</div>
         <div class="flashcard__mastery" id="cardMastery"></div>
-        <div class="flashcard__hint">Тапни, щоб повернутись</div>
+        <div class="flashcard__hint" data-i18n="fc.back_hint">Тапни, щоб повернутись</div>
       </div>
     </div>
   </div>
 
-  <!-- Навігація між картками -->
+  <!-- Оцінка себе: Знаю / Не знаю (як у Tinder) -->
   <div class="flash-controls">
-    <button class="btn btn--ghost" id="btnPrev">← Попередня</button>
-    <span class="muted" id="cardCounter" style="align-self:center">1 / 1</span>
-    <button class="btn" id="btnNext">Наступна →</button>
+    <button class="btn btn--danger btn--big" id="btnDontKnow" data-i18n="fc.dontknow">✗ Не знаю</button>
+    <button class="btn btn--big" id="btnKnow" data-i18n="fc.know">✓ Знаю</button>
+  </div>
+  <p class="center muted" id="ratingHint"></p>
+
+  <!-- Лічильник прогресу колоди -->
+  <div class="flash-controls">
+    <span class="pill" id="cardCounter">1 / 1</span>
   </div>
 </main>
+
+<!-- Модальне вікно «круг пройдено» -->
+<div class="modal-overlay" id="doneModal">
+  <div class="modal">
+    <h2 data-i18n="fc.done_title">🎉 Круг пройдено!</h2>
+    <p class="muted" data-i18n="fc.done_text">Слова з «Не знаю» повернуться найближчими.</p>
+    <button class="btn mt-2" id="btnContinue">OK</button>
+  </div>
+</div>
 
 <script src="data.js"></script>
 <script src="core.js"></script>
 <script>
-let deck = [];      // поточна колода (можливо відфільтрована)
-let index = 0;      // індекс поточної картки
+let deck = [];        // поточна колода
+let index = 0;        // індекс поточної картки
+let rated = false;    // чи оцінив себе на ЦІЙ картці (щоб не махати кнопками просто так)
+
+const t = key => I18N[getLang()][key];   // коротший доступ до перекладів
 
 /* Створює колоду залежно від фільтра */
 function buildDeck() {
   const mode = document.getElementById("filterSelect").value;
-  deck = WORDS.filter(w => mode === "unlearned" ? !isLearned(w.id) : true);
-  if (deck.length === 0) {
-    alert("🎉 Усі слова вивчені! Спробуй режим «Усі слова», щоб повторити.");
-    document.getElementById("filterSelect").value = "all";
+  if (mode === "unlearned") {
+    deck = WORDS.filter(w => !isLearned(w.id));
+    if (deck.length === 0) {
+      alert("🎉 " + t("dash.learnedwords") + " " + TOTAL_WORDS + " / " + TOTAL_WORDS + "!");
+      document.getElementById("filterSelect").value = "smart";
+      return buildDeck();
+    }
+  } else if (mode === "all") {
     deck = [...WORDS];
+  } else {
+    // 🎯 РОЗУМНИЙ РЕЖИМ: слова сортуються системою Лейтнера.
+    // Ті, що позначені «Не знаю» (ящик 1), завжди показуються першими.
+    deck = smartOrder(WORDS);
   }
   index = 0;
   renderCard();
@@ -78,33 +105,89 @@ function buildDeck() {
 /* Малює картку № index */
 function renderCard() {
   const card = document.getElementById("flashcard");
-  card.classList.remove("flipped");   // завжди починаємо з датської сторони
+  card.classList.remove("flipped");
+  rated = false;
   const w = deck[index];
   document.getElementById("cardFront").textContent = w.da;
   document.getElementById("cardBack").textContent  = w.uk;
+
   const m = getMastery(w.id);
+  const s = getSmartState(w.id);
   document.getElementById("cardMastery").textContent =
-    isLearned(w.id) ? "✅ Вивчено (" + m + "/" + CONFIG.MASTERY_TO_LEARN + ")"
-                    : "Прогрес: " + m + "/" + CONFIG.MASTERY_TO_LEARN + " правильних";
+    isLearned(w.id)
+      ? t("fc.learned") + m + "/" + CONFIG.MASTERY_TO_LEARN + ")"
+      : t("fc.progress") + m + "/" + CONFIG.MASTERY_TO_LEARN + " • " + t("fc.box") + "🔥".repeat(s.box);
   document.getElementById("cardCounter").textContent = (index + 1) + " / " + deck.length;
+  document.getElementById("ratingHint").textContent = "";
 }
 
+/* Переворот картки */
 document.getElementById("flashcard").addEventListener("click", () =>
   document.getElementById("flashcard").classList.toggle("flipped"));
 
+/* Озвучення (Web Speech API, датська) */
 document.getElementById("btnSpeak").addEventListener("click", e => {
-  e.stopPropagation();                 // не перевертаємо картку при кліку на кнопку
-  speakDanish(deck[index].da);         // Web Speech API (датська)
+  e.stopPropagation();
+  speakDanish(deck[index].da);
 });
 
-document.getElementById("btnNext").addEventListener("click", () => {
-  index = (index + 1) % deck.length;
+/*
+  ГОЛОВНА НОВА ФІЧА: оцінка «Знаю» / «Не знаю».
+  - «Не знаю» → rateSmartCard(id, false) → слово в ящик 1, повернеться ОДРАЗУ
+  - «Знаю»    → rateSmartCard(id, true)  → ящик +1, слово з'явиться пізніше
+  Кнопки працюють у будь-якому режимі (навіть у «Усі слова»).
+*/
+function rate(knew) {
+  const w = deck[index];
+  const flipped = document.getElementById("flashcard").classList.contains("flipped");
+  if (!flipped) {
+    // Підказка: спершу подивись переклад, потім оцінюй
+    document.getElementById("ratingHint").textContent = t("fc.need_flip");
+    return;
+  }
+  if (rated) return;   // вже оцінили цю картку
+  rated = true;
+
+  rateSmartCard(w.id, knew);
+
+  // Невелика анімація «відлету» картки
+  const card = document.getElementById("flashcard");
+  card.style.transition = "transform .3s ease, opacity .3s ease";
+  card.style.transform = knew ? "translateX(60px) rotate(6deg)" : "translateX(-60px) rotate(-6deg)";
+  card.style.opacity = "0";
+
+  setTimeout(() => {
+    card.style.transition = "none";
+    card.style.transform = "";
+    card.style.opacity = "1";
+    nextCard();
+  }, 300);
+}
+
+/* Наступна картка або кінець колоди */
+function nextCard() {
+  index++;
+  if (index >= deck.length) {
+    // Круг пройдено — показуємо модальне вікно
+    document.getElementById("doneModal").classList.add("open");
+    // Оновлюємо колоду: у розумному режимі «Не знаю»-слова знову попереду
+    buildDeck();
+    index = -1; // наступний клік почне з 0
+    return;
+  }
+  renderCard();
+}
+
+document.getElementById("btnKnow").addEventListener("click", () => rate(true));
+document.getElementById("btnDontKnow").addEventListener("click", () => rate(false));
+
+document.getElementById("btnContinue").addEventListener("click", () => {
+  document.getElementById("doneModal").classList.remove("open");
+  index = 0;
   renderCard();
 });
-document.getElementById("btnPrev").addEventListener("click", () => {
-  index = (index - 1 + deck.length) % deck.length;
-  renderCard();
-});
+
+/* Перемішування (для звичайних режимів) */
 document.getElementById("btnShuffle").addEventListener("click", () => {
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -113,8 +196,11 @@ document.getElementById("btnShuffle").addEventListener("click", () => {
   index = 0;
   renderCard();
 });
+
 document.getElementById("filterSelect").addEventListener("change", buildDeck);
 
+// Ініціалізація
+applyI18n();
 buildDeck();
 </script>
 </body>

@@ -11,60 +11,60 @@
 <nav class="nav">
   <span class="nav__brand">⚡ NORDICBOOST</span>
   <div class="nav__links">
-    <a href="index.html">Головна</a>
-    <a href="flashcards.html">Картки</a>
-    <a href="quiz.html" class="active">Квіз</a>
-    <a href="blast.html">Word Blast</a>
+    <a href="index.html" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" class="active" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
   </div>
 </nav>
 
 <main class="container">
-  <h1 class="page-title">🧠 Квіз</h1>
-  <p class="page-sub">Обери правильний данський переклад. За кожну правильну відповідь — <span style="color:var(--neon-green)">+10 XP</span>!</p>
+  <h1 class="page-title">🧠 <span data-i18n="nav.quiz">Квіз</span></h1>
+  <p class="page-sub"><span data-i18n="quiz.sub">Обери правильний данський переклад. За кожну правильну відповідь — </span><span style="color:var(--neon-green)">+<span id="xpPreview">10</span> XP</span>!</p>
 
   <div class="card">
-    <!-- Питання: українське слово -->
-    <h2 id="questionWord" style="font-size:1.8rem; color:var(--neon-yellow)">—</h2>
-    <p class="muted">Обери данський переклад:</p>
+    <h2 id="questionWord" class="question-word">—</h2>
+    <p class="muted" data-i18n="quiz.pick">Обери данський переклад:</p>
 
     <div class="quiz-options" id="options"></div>
 
     <p class="quiz-feedback" id="feedback"></p>
 
-    <button class="btn mt-2" id="btnNext" style="display:none">Наступне питання →</button>
+    <button class="btn mt-2" id="btnNext" style="display:none" data-i18n="quiz.next">Наступне питання →</button>
   </div>
 
   <div class="stat-grid mt-2">
-    <div class="stat"><div class="stat__value" id="quizCorrect">0</div><div class="stat__label">Правильних підряд</div></div>
-    <div class="stat"><div class="stat__value" id="quizXP">0</div><div class="stat__label">XP за сесію</div></div>
+    <div class="stat"><div class="stat__value" id="quizCorrect">0</div><div class="stat__label" data-i18n="quiz.streak">Правильних підряд</div></div>
+    <div class="stat"><div class="stat__value" id="quizXP">0</div><div class="stat__label" data-i18n="quiz.session">XP за сесію</div></div>
   </div>
 </main>
 
 <script src="data.js"></script>
 <script src="core.js"></script>
 <script>
-let currentWord = null;     // поточне слово-питання
-let sessionXP = 0;          // XP, зароблені за цю сесію квізу
-let streak = 0;            // правильні відповіді підряд
+let currentWord = null;
+let sessionXP = 0;
+let streak = 0;
 
-const OPTION_COUNT = 4;    // скільки варіантів відповіді показувати (легко змінити)
+const OPTION_COUNT = 4;    // скільки варіантів відповіді (легко змінити)
+const t = key => I18N[getLang()][key];
 
-/* Питання = випадкове слово; правильна відповідь + 3 випадкові «приманки» */
+/* Питання = випадкове слово; правильна відповідь + «приманки» */
 function nextQuestion() {
   document.getElementById("feedback").textContent = "";
   document.getElementById("feedback").className = "quiz-feedback";
   document.getElementById("btnNext").style.display = "none";
+  document.getElementById("xpPreview").textContent = CONFIG.XP_PER_CORRECT;
 
   currentWord = WORDS[Math.floor(Math.random() * WORDS.length)];
 
-  // Збираємо унікальні неправильні варіанти
   const distractors = [];
   while (distractors.length < OPTION_COUNT - 1) {
     const w = WORDS[Math.floor(Math.random() * WORDS.length)];
     if (w.id !== currentWord.id && !distractors.find(d => d.id === w.id)) distractors.push(w);
   }
 
-  // Перемішуємо варіанти
   const options = [currentWord, ...distractors];
   for (let i = options.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -84,9 +84,8 @@ function nextQuestion() {
   });
 }
 
-/* Перевіряє відповідь, нараховує XP та оновлює mastery в localStorage */
+/* Перевірка відповіді + XP + mastery у localStorage */
 function checkAnswer(button, opt) {
-  // Блокуємо повторні кліки
   document.querySelectorAll(".quiz-option").forEach(b => b.disabled = true);
 
   const feedback = document.getElementById("feedback");
@@ -94,24 +93,22 @@ function checkAnswer(button, opt) {
 
   if (correct) {
     button.classList.add("correct");
-    feedback.textContent = "✅ Rigtigt! (Правильно!) +" + CONFIG.XP_PER_CORRECT + " XP";
+    feedback.textContent = t("quiz.ok") + CONFIG.XP_PER_CORRECT + " XP";
     feedback.classList.add("ok");
 
-    // === ГОЛОВНЕ: фіксуємо прогрес і XP у localStorage ===
     const newMastery = recordCorrectAnswer(currentWord.id);
     sessionXP += CONFIG.XP_PER_CORRECT;
     streak++;
 
     if (newMastery === CONFIG.MASTERY_TO_LEARN) {
-      feedback.textContent += " 🎉 Слово вивчено!";
+      feedback.textContent += t("quiz.word_learned");
     }
   } else {
     button.classList.add("wrong");
-    // Підсвічуємо правильну відповідь
     document.querySelectorAll(".quiz-option").forEach(b => {
       if (b.textContent === currentWord.da) b.classList.add("correct");
     });
-    feedback.textContent = "❌ Neppeki! Правильно: \"" + currentWord.da + "\"";
+    feedback.textContent = t("quiz.bad") + currentWord.da + "»";
     feedback.classList.add("bad");
     streak = 0;
   }
@@ -123,6 +120,7 @@ function checkAnswer(button, opt) {
 
 document.getElementById("btnNext").addEventListener("click", nextQuestion);
 
+applyI18n();
 nextQuestion();
 </script>
 </body>

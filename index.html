@@ -11,71 +11,72 @@
 <nav class="nav">
   <span class="nav__brand">⚡ NORDICBOOST</span>
   <div class="nav__links">
-    <a href="index.html" class="active">Головна</a>
-    <a href="flashcards.html">Картки</a>
-    <a href="quiz.html">Квіз</a>
-    <a href="blast.html">Word Blast</a>
+    <a href="index.html" class="active" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
   </div>
 </nav>
 
 <main class="container">
 
   <!-- Привітання -->
-  <h1 class="page-title">Привіт, <span style="color:var(--neon-green); text-shadow:0 0 12px rgba(57,255,136,.6)">Nazar</span>! 👋</h1>
-  <p class="page-sub">Готовий вивчати данську сьогодні? Обери режим нижче.</p>
+  <h1 class="page-title"><span data-i18n="dash.hello">Привіт</span>, <span class="neon-name">Nazar</span>! 👋</h1>
+  <p class="page-sub" data-i18n="dash.ready">Готовий вивчати данську сьогодні? Обери режим нижче.</p>
 
-  <!-- Статистика: рівень, XP, вивчені слова -->
+  <!-- Статистика -->
   <div class="stat-grid">
     <div class="stat">
       <div class="stat__value" id="statLevel">1</div>
-      <div class="stat__label">Рівень</div>
+      <div class="stat__label" data-i18n="dash.level">Рівень</div>
     </div>
     <div class="stat">
       <div class="stat__value" id="statXP">0</div>
-      <div class="stat__label">Всього XP</div>
+      <div class="stat__label" data-i18n="dash.xp">Всього XP</div>
     </div>
     <div class="stat">
       <div class="stat__value" id="statLearned">0</div>
-      <div class="stat__label">Вивчено слів</div>
+      <div class="stat__label" data-i18n="dash.learned">Вивчено слів</div>
     </div>
   </div>
 
   <!-- Прогрес-бар рівня -->
   <div class="card mb-2">
-    <strong>До наступного рівня</strong>
+    <strong data-i18n="dash.nextlevel">До наступного рівня</strong>
     <div class="progress"><div class="progress__fill" id="xpBar"></div></div>
     <span class="progress-text" id="xpBarText">0 / 100 XP</span>
   </div>
 
-  <!-- Прогрес-бар вивчених слів -->
+  <!-- Прогрес-бар слів -->
   <div class="card mb-2">
-    <strong>Слова з бази</strong>
+    <strong data-i18n="dash.wordsdb">Слова з бази</strong>
     <div class="progress"><div class="progress__fill progress__fill--pink" id="wordsBar"></div></div>
-    <span class="progress-text" id="wordsBarText">Вивчено слів: 0 / 0</span>
+    <span class="progress-text" id="wordsBarText">—</span>
   </div>
 
   <!-- Навігація до режимів -->
   <div class="stat-grid">
-    <a class="card center" href="flashcards.html" style="display:block">
-      <div style="font-size:2rem">🃏</div>
-      <strong>Картки</strong>
-      <p class="muted">Вивчай слова — тапни, щоб перевернути</p>
+    <a class="card center mode-card" href="flashcards.html">
+      <div class="mode-icon">🃏</div>
+      <strong data-i18n="dash.cards_title">Картки</strong>
+      <p class="muted" data-i18n="dash.cards_desc">Вивчай слова — тапни, щоб перевернути</p>
     </a>
-    <a class="card center" href="quiz.html" style="display:block">
-      <div style="font-size:2rem">🧠</div>
-      <strong>Квіз</strong>
-      <p class="muted">Тест з вибором відповіді + XP</p>
+    <a class="card center mode-card" href="quiz.html">
+      <div class="mode-icon">🧠</div>
+      <strong data-i18n="dash.quiz_title">Квіз</strong>
+      <p class="muted" data-i18n="dash.quiz_desc">Тест з вибором відповіді + XP</p>
     </a>
-    <a class="card center" href="blast.html" style="display:block">
-      <div style="font-size:2rem">🚀</div>
-      <strong>Word Blast</strong>
-      <p class="muted">Арканоїд зі словами: друкуй, поки не впало!</p>
+    <a class="card center mode-card" href="blast.html">
+      <div class="mode-icon">🚀</div>
+      <strong data-i18n="dash.blast_title">Word Blast</strong>
+      <p class="muted" data-i18n="dash.blast_desc">Арканоїд зі словами: друкуй, поки не впало!</p>
     </a>
   </div>
 
-  <!-- Небезпечно: скидання прогресу -->
+  <!-- Скидання прогресу -->
   <div class="center mt-2">
-    <button class="btn btn--ghost btn--small" id="btnReset">Скинути прогрес</button>
+    <button class="btn btn--ghost btn--small" id="btnReset" data-i18n="dash.reset">Скинути прогрес</button>
   </div>
 
 </main>
@@ -89,25 +90,25 @@ function refreshDashboard() {
   document.getElementById("statXP").textContent      = loadProgress().totalXP;
   document.getElementById("statLearned").textContent = getLearnedCount();
 
-  // XP-бар
   const xpInLevel = getLevelProgress();
   document.getElementById("xpBar").style.width = (xpInLevel / CONFIG.XP_PER_LEVEL * 100) + "%";
   document.getElementById("xpBarText").textContent = xpInLevel + " / " + CONFIG.XP_PER_LEVEL + " XP";
 
-  // Бар слів
   const learned = getLearnedCount();
   document.getElementById("wordsBar").style.width = (learned / TOTAL_WORDS * 100) + "%";
-  document.getElementById("wordsBarText").textContent = "Вивчено слів: " + learned + " / " + TOTAL_WORDS;
+  document.getElementById("wordsBarText").textContent = t("dash.learnedwords") + learned + " / " + TOTAL_WORDS;
 }
 
+const t = key => I18N[getLang()][key];
+
 document.getElementById("btnReset").addEventListener("click", () => {
-  if (confirm("Точно скинути весь прогрес? Це видалить XP і вивчені слова!")) {
+  if (confirm(t("dash.reset_confirm"))) {
     resetProgress();
     refreshDashboard();
   }
 });
 
-// Оновлюємо числа при завантаженні сторінки
+applyI18n();
 refreshDashboard();
 </script>
 </body>

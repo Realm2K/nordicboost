@@ -11,20 +11,21 @@
 <nav class="nav">
   <span class="nav__brand">⚡ NORDICBOOST</span>
   <div class="nav__links">
-    <a href="index.html">Головна</a>
-    <a href="flashcards.html">Картки</a>
-    <a href="quiz.html">Квіз</a>
-    <a href="blast.html" class="active">Word Blast</a>
+    <a href="index.html" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" class="active" data-i18n="nav.blast">Word Blast</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
   </div>
 </nav>
 
 <main class="container">
   <h1 class="page-title">🚀 Word Blast</h1>
-  <p class="page-sub">Друкуй український переклад слова, що падає, і натисни <strong>Enter</strong>. Якщо слово впаде внизу — втратиш життя! ❤️❤️❤️</p>
+  <p class="page-sub"><span data-i18n="blast.sub1">Друкуй український переклад слова, що падає, і натисни</span> <strong>Enter</strong><span data-i18n="blast.sub2">. Якщо слово впаде внизу — втратиш життя!</span> ❤️❤️❤️</p>
 
-  <!-- HUD: рахунок / XP / життя -->
+  <!-- HUD -->
   <div class="blast-hud">
-    <span class="pill">💥 Рахунок: <span id="blastScore">0</span></span>
+    <span class="pill">💥 <span data-i18n="blast.score">Рахунок</span>: <span id="blastScore">0</span></span>
     <span class="pill" style="color:var(--neon-green)">+<span id="blastXP">0</span> XP</span>
     <span class="pill" id="blastLives">❤️❤️❤️</span>
   </div>
@@ -33,45 +34,39 @@
     <canvas id="blastCanvas"></canvas>
   </div>
 
-  <input id="blastInput" type="text" placeholder="Введи переклад і натисни Enter…" autocomplete="off" autofocus>
+  <input id="blastInput" type="text" data-i18n-ph="blast.input_ph" placeholder="Введи переклад і натисни Enter…" autocomplete="off" autofocus>
 
   <div class="center mt-2">
-    <button class="btn" id="btnStart">▶ Почати гру</button>
-    <button class="btn btn--ghost" id="btnRestart" style="display:none">🔄 Грати ще раз</button>
+    <button class="btn" id="btnStart" data-i18n="blast.start">▶ Почати гру</button>
   </div>
 </main>
 
-<!-- Екран кінця гри -->
+<!-- Кінець гри -->
 <div class="modal-overlay" id="gameOverModal">
   <div class="modal">
-    <h2>💥 Гра закінчена!</h2>
-    <p>Рахунок: <strong id="finalScore">0</strong></p>
-    <p>Зароблено XP: <strong id="finalXP" style="color:var(--neon-green)">0</strong></p>
-    <button class="btn mt-2" onclick="location.reload()">Грати ще раз 🔄</button>
+    <h2 data-i18n="blast.over">💥 Гра закінчена!</h2>
+    <p><span data-i18n="blast.score_label">Рахунок: </span><strong id="finalScore">0</strong></p>
+    <p><span data-i18n="blast.xp_label">Зароблено XP: </span><strong id="finalXP" style="color:var(--neon-green)">0</strong></p>
+    <button class="btn mt-2" onclick="location.reload()" data-i18n="blast.again">Грати ще раз 🔄</button>
   </div>
 </div>
 
 <script src="data.js"></script>
 <script src="core.js"></script>
 <script>
-/* =========================================================
-   WORD BLAST — швидка гра з падаючими словами (Canvas)
-   =========================================================
-   ⚙️ УСІ НАЛАШТУВАННЯ (швидкість, частота, XP, життя) —
-   у файлі core.js, об'єкт CONFIG.BLAST. Зміни числа там!
-   ========================================================= */
-
 const canvas = document.getElementById("blastCanvas");
 const ctx = canvas.getContext("2d");
 const input = document.getElementById("blastInput");
 
-let words = [];        // активні падаючі слова
-let particles = [];    // ефект вибуху
+let words = [];
+let particles = [];
 let running = false;
 let score = 0, gameXP = 0, lives = 0;
 let fallSpeed = 0, spawnInterval = 0, lastSpawn = 0, lastTime = 0;
+let starfield = [];          // фонові «зорі» — легкий паралакс
 
-/* Підганяємо розмір канваса під ширину екрана (плюс HiDPI) */
+const t = key => I18N[getLang()][key];
+
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -80,17 +75,26 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 
-/* Клас падаючого слова */
+/* Зорі для фону (глибокий космос 🌌) */
+function initStars() {
+  starfield = [];
+  for (let i = 0; i < 60; i++) {
+    starfield.push({
+      x: Math.random() * canvas.clientWidth,
+      y: Math.random() * canvas.clientHeight,
+      r: Math.random() * 1.5 + 0.4,
+      speed: 10 + Math.random() * 25,
+    });
+  }
+}
+
 class FallingWord {
   constructor(word) {
-    this.word = word;                      // об'єкт зі словником
+    this.word = word;
     this.x = 40 + Math.random() * (canvas.clientWidth - 80);
     this.y = -20;
-    this.exploding = false;
   }
-  update(dt) {
-    this.y += fallSpeed * dt;              // dt у секундах
-  }
+  update(dt) { this.y += fallSpeed * dt; }
   draw() {
     ctx.font = "700 22px 'Segoe UI', sans-serif";
     ctx.textAlign = "center";
@@ -102,7 +106,6 @@ class FallingWord {
   }
 }
 
-/* Частинки вибуху */
 function spawnExplosion(x, y) {
   for (let i = 0; i < 30; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -116,42 +119,43 @@ function spawnExplosion(x, y) {
   }
 }
 
-/* Додає нове падаюче слово */
 function spawnWord() {
-  const pool = WORDS;
-  const w = pool[Math.floor(Math.random() * pool.length)];
+  const w = WORDS[Math.floor(Math.random() * WORDS.length)];
   words.push(new FallingWord(w));
 }
 
-/* Оновлює HUD (життя/рахунок/XP) */
 function updateHUD() {
   document.getElementById("blastScore").textContent = score;
   document.getElementById("blastXP").textContent = gameXP;
   document.getElementById("blastLives").textContent = "❤️".repeat(Math.max(0, lives));
 }
 
-/* Основний цикл гри */
 function loop(timestamp) {
   if (!running) return;
-  const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // обмежуємо dt
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
 
-  // Поява нових слів
   if (timestamp - lastSpawn > spawnInterval) {
     spawnWord();
     lastSpawn = timestamp;
   }
 
-  ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  ctx.clearRect(0, 0, W, H);
 
-  // Оновлюємо і малюємо слова
+  // Рух фонових зірок
+  ctx.fillStyle = "rgba(255,255,255,.5)";
+  starfield.forEach(s => {
+    s.y += s.speed * dt;
+    if (s.y > H) { s.y = -2; s.x = Math.random() * W; }
+    ctx.fillRect(s.x, s.y, s.r, s.r);
+  });
+
   for (let i = words.length - 1; i >= 0; i--) {
     const fw = words[i];
     fw.update(dt);
     fw.draw();
-
-    // Слово досягло низу → мінус життя
-    if (fw.y > canvas.clientHeight - 10) {
+    if (fw.y > H - 10) {
       words.splice(i, 1);
       lives--;
       updateHUD();
@@ -159,12 +163,11 @@ function loop(timestamp) {
     }
   }
 
-  // Частинки вибуху
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.life -= dt;
     p.x += p.vx * dt; p.y += p.vy * dt;
-    p.vy += 200 * dt; // «гравітація» частинок
+    p.vy += 200 * dt;
     if (p.life <= 0) { particles.splice(i, 1); continue; }
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
@@ -175,44 +178,36 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-/* Перевірка введеного тексту (Enter) */
 input.addEventListener("keydown", e => {
   if (e.key !== "Enter" || !running) return;
   const typed = input.value.trim().toLowerCase();
 
-  // Порівнюємо з кожним активним словом (перше збігання)
   for (let i = 0; i < words.length; i++) {
     const fw = words[i];
-    const ukNorm = fw.word.uk.toLowerCase();
-    // Допускаємо коротші альтернативи через «/» у перекладі (напр. «гол / ворота»)
-    const accepted = ukNorm.split("/").map(s => s.trim());
+    const accepted = fw.word.uk.toLowerCase().split("/").map(s => s.trim());
     if (accepted.includes(typed)) {
-      // 🎯 Правильно!
       words.splice(i, 1);
       spawnExplosion(fw.x, fw.y);
       score++;
       gameXP += CONFIG.XP_PER_CORRECT;
-      recordCorrectAnswer(fw.word.id);          // ← mastery++ у localStorage
+      recordCorrectAnswer(fw.word.id);
 
-      // Прогресія складності (усі числа — в core.js, CONFIG.BLAST)
       fallSpeed = Math.min(CONFIG.BLAST.FALL_SPEED_MAX, fallSpeed * CONFIG.BLAST.FALL_SPEED_RAMP);
       spawnInterval = Math.max(CONFIG.BLAST.SPAWN_INTERVAL_MIN, spawnInterval * CONFIG.BLAST.SPAWN_RAMP);
 
       updateHUD();
       input.value = "";
-      input.placeholder = "💪 Влучно! Наступне слово…";
-      setTimeout(() => input.placeholder = "Введи переклад і натисни Enter…", 700);
+      input.placeholder = t("blast.nice");
+      setTimeout(() => input.placeholder = t("blast.input_ph"), 700);
       return;
     }
   }
 
-  // Невірно — просто очищаємо поле
   input.value = "";
-  input.placeholder = "❌ Мимо! Спробуй ще…";
-  setTimeout(() => input.placeholder = "Введи переклад і натисни Enter…", 700);
+  input.placeholder = t("blast.miss");
+  setTimeout(() => input.placeholder = t("blast.input_ph"), 700);
 });
 
-/* Початок гри */
 function startGame() {
   words = []; particles = [];
   score = 0; gameXP = 0;
@@ -221,18 +216,17 @@ function startGame() {
   spawnInterval = CONFIG.BLAST.SPAWN_INTERVAL_START;
   lastSpawn = 0; lastTime = performance.now();
   running = true;
+  initStars();
   updateHUD();
   document.getElementById("btnStart").style.display = "none";
   requestAnimationFrame(loop);
 }
 
-/* Кінець гри */
 function endGame() {
   running = false;
   document.getElementById("finalScore").textContent = score;
   document.getElementById("finalXP").textContent = gameXP;
   document.getElementById("gameOverModal").classList.add("open");
-  // XP уже збережено через recordCorrectAnswer() під час гри
 }
 
 document.getElementById("btnStart").addEventListener("click", () => {
@@ -241,6 +235,7 @@ document.getElementById("btnStart").addEventListener("click", () => {
   input.focus();
 });
 
+applyI18n();
 resizeCanvas();
 </script>
 </body>
