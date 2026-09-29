@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NordicBoost — Min by</title>
+  <link rel="stylesheet" href="style.css?v=9">
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__brand">⚡ NORDICBOOST</span>
+  <div class="nav__links">
+    <a href="index.html" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
+    <a href="match.html" data-i18n="nav.match">Match</a>
+    <a href="city.html" class="active" data-i18n="nav.city">By</a>
+    <a href="stats.html" data-i18n="nav.stats">Прогрес</a>
+    <a href="grammar.html" data-i18n="nav.grammar">Граматика</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
+  </div>
+</nav>
+
+<main class="container">
+  <h1 class="page-title" data-i18n="city.title">🏙️ Min by</h1>
+  <p class="page-sub" data-i18n="city.sub">Optjen mønter ved at lære dansk — og byg din drømmeby!</p>
+
+  <!-- HUD: mønter + by-state -->
+  <div class="city-hud">
+    <span class="pill" id="hudCoins">🪙 0</span>
+    <span class="pill" id="hudPop">👥 0</span>
+    <span class="pill" id="hudJobs">💼 0</span>
+    <span class="pill" id="hudHappy">😊 0%</span>
+  </div>
+  <p class="center muted" data-i18n="city.earn_hint">💡 Mønter optjenes automatisk: 1 mønt pr. 2 XP fra kort, quiz, Blast og Match!</p>
+
+  <!-- Isometrisk by-canvas -->
+  <div class="card city-canvas-wrap">
+    <canvas id="cityCanvas" width="960" height="640"></canvas>
+  </div>
+
+  <!-- Byg-udvalgspanel (åbnes ved klik på en grund) -->
+  <div class="modal-overlay" id="buildModal">
+    <div class="modal city-modal">
+      <h2 id="buildModalTitle">—</h2>
+      <div class="city-tabs" id="cityTabs"></div>
+      <div class="city-catalog" id="cityCatalog"></div>
+      <button class="btn btn--ghost mt-2" id="btnCloseBuild" data-i18n="city.close">Luk</button>
+    </div>
+  </div>
+</main>
+
+<script src="data.js?v=9"></script>
+<script src="core.js?v=9"></script>
+<script>
+"use strict";
+/* =====================================================================
+   🏙️ NORDICBOOST BYEN — isometrisk 2D-byggespil
+   =====================================================================
+   - Mønter mintes fra XP: 1 mønt pr. 2 XP (getUnspentCoins nede i core-filen).
+   - Byen gemmes i localStorage under "nordicboost_city".
+   - Klik på en tom grund → byg. Klik på bygning → opgrader/ Riv ned.
+   ===================================================================== */
+
+const GRID = 6;                 // 6x6 grunde
+const TILE_W = 108, TILE_H = 54; // isometrisk felt-størrelse
+const canvas = document.getElementById("cityCanvas");
+const ctx = canvas.getContext("2d");
+const t = key => I18N[getLang()][key];
+
+/* ---------- Data: bygninger (katalog) ----------
+   type: id, kat: home/biz/pub/deco, navn (uk/da), pris, pop, jobs, happy,
+   maxLevel, unlockLevel (sprogniveau fra XP). */
+const BUILDINGS = [
+  // --- Boliger ---
+  { id:"cabin",   kat:"home", uk:"Træhytte",       da:"Træhytte",   cost:60,  pop:6,  jobs:0, happy:2, max:3, unlock:1 },
+  { id:"house",   kat:"home", uk:"Hus",            da:"Hus",        cost:140, pop:12, jobs:0, happy:3, max:3, unlock:2 },
+  { id:"villa",   kat:"home", uk:"Villa",          da:"Villa",      cost:420, pop:24, jobs:2, happy:6, max:3, unlock:4 },
+  { id:"apart",   kat:"home", uk:"Lejlighedskarré",da:"Boligblok",  cost:900, pop:60, jobs:4, happy:5, max:4, unlock:6 },
+  // --- Virksomheder ---
+  { id:"kiosk",   kat:"biz",  uk:"Kiosk",          da:"Kiosk",      cost:80,  pop:0, jobs:4, happy:1, max:3, unlock:1 },
+  { id:"cafe",    kat:"biz",  uk:"Café",           da:"Café",       cost:240, pop:0, jobs:8, happy:4, max:3, unlock:3 },
+  { id:"office",  kat:"biz",  uk:"Kontor",         da:"Kontor",     cost:600, pop:0, jobs:20,happy:2, max:3, unlock:5 },
+  { id:"factory", kat:"biz",  uk:"Fabrik",         da:"Fabrik",     cost:1200,pop:0, jobs:45,happy:-2,max:3, unlock:7 },
+  // --- Offentlige ---
+  { id:"school",  kat:"pub",  uk:"Skole",          da:"Skole",      cost:300, pop:0, jobs:10, happy:6, max:3, unlock:3 },
+  { id:"park",    kat:"pub",  uk:"Park",           da:"Park",       cost:150, pop:0, jobs:0,  happy:10,max:3, unlock:2 },
+  { id:"hospital",kat:"pub",  uk:"Hospital",       da:"Hospital",   cost:800, pop:0, jobs:25, happy:8, max:3, unlock:6 },
+  { id:"stadium", kat:"pub",  uk:"Stadion",        da:"Stadion",    cost:2000,pop:0, jobs:30, happy:16,max:2, unlock:9 },
+  // --- Dekoration ---
+  { id:"tree",    kat:"deco", uk:"Træ",            da:"Træ",        cost:20,  pop:0, jobs:0, happy:2, max:1, unlock:1 },
+  { id:"fountain",kat:"deco", uk:"Fontæne",        da:"Fontæne",    cost:120, pop:0, jobs:0, happy:5, max:2, unlock:3 },
+  { id:"statue",  kat:"deco", uk:"Statue",         da:"Statue",     cost:350, pop:0, jobs:0, happy:6, max:2, unlock:5 },
+  { id:"tower",   kat:"deco", uk:"Udsigtstårn",    da:"Udsigtstårn",cost:1500,pop:0, jobs:4, happy:12,max:2, unlock:8 },
+];
+const BUILD_BY_ID = Object.fromEntries(BUILDINGS.map(b => [b.id, b]));
+
+/* ---------- Save/load ---------- */
+const CITY_KEY = "nordicboost_city";
+function loadCity() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CITY_KEY) || "{}");
+    if (c && typeof c === "object" && Array.isArray(c.plots)) return c;
+  } catch (e) {}
+  return { plots: new Array(GRID * GRID).fill(null), spent: 0, seenLevel: getLevel() };
+}
+function saveCity(c) { localStorage.setItem(CITY_KEY, JSON.stringify(c)); }
+
+/* Mønter = (totalXP / 2) - allerede brugte mønter. XP vokser via læring. */
+function getUnspentCoins() {
+  const city = loadCity();
+  // 1 mønt pr. 2 XP (XP_PER_CORRECT = 10 → 5 mønter pr. rigtigt svar):
+  const coins = Math.floor(loadProgress().totalXP / 2) - city.spent;
+  return Math.max(0, coins);
+}
+function spendCoins(n) {
+  const city = loadCity();
+  city.spent += n;
+  saveCity(city);
+}
+
+/* ---------- Isometrisk matematik ---------- */
+function tileToScreen(gx, gy) {
+  return {
+    x: canvas.width  / 2 + (gx - gy) * (TILE_W / 2),
+    y: 60            + (gx + gy) * (TILE_H / 2),
+  };
+}
+function screenToTile(mx, my) {
+  // inverteret iso-transform + lille tolerance-område
+  const gx = ((mx - canvas.width/2) / (TILE_W/2) + (my - 60) / (TILE_H/2)) / 2;
+  const gy = ((my - 60) / (TILE_H/2) - (mx - canvas.width/2) / (TILE_W/2)) / 2;
+  return { x: Math.floor(gx), y: Math.floor(gy) };
+}
+function plotVertices(gx, gy) {
+  const p = tileToScreen(gx, gy);
+  return [
+    [p.x, p.y],
+    [p.x + TILE_W/2, p.y + TILE_H/2],
+    [p.x, p.y + TILE_H],
+    [p.x - TILE_W/2, p.y + TILE_H/2],
+  ];
+}
+
+/* =====================================================================
+   🎨 MODELLER — hvert byggværk tegnes med skygger, facader og detaljer
+   ===================================================================== */
+
+function shade(hex, f) {
+  // gør en farve lysere (f>0) eller mørkere (f<0)
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  if (f >= 0) { r += (255-r)*f; g += (255-g)*f; b += (255-b)*f; }
+  else { r *= (1+f); g *= (1+f); b *= (1+f); }
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+
+/* Rejser en iso-boks med to synlige facader + tag.
+   cx,cy = bundens centrum (midt af grunden), w/d = fodaftryk, h = højde */
+function isoBox(cx, cy, w, d, h, color, opts = {}) {
+  const hw = w/2, hd = d/2;
+  // hjørner nedefra og op
+  const bN = [cx, cy - hd], bE = [cx + hw, cy], bS = [cx, cy + hd], bW = [cx - hw, cy];
+  const top = h;
+  const tN = [bN[0], bN[1] - top], tE = [bE[0], bE[1] - top],
+        tS = [bS[0], bS[1] - top], tW = [bW[0], bW[1] - top];
+  // venstre facade (mørkere)
+  ctx.fillStyle = shade(color, -0.28);
+  ctx.beginPath(); ctx.moveTo(bW[0],bW[1]); ctx.lineTo(bN[0],bN[1]); ctx.lineTo(tN[0],tN[1]); ctx.lineTo(tW[0],tW[1]); ctx.closePath(); ctx.fill();
+  // højre facade
+  ctx.fillStyle = shade(color, -0.12);
+  ctx.beginPath(); ctx.moveTo(bN[0],bN[1]); ctx.lineTo(bE[0],bE[1]); ctx.lineTo(tE[0],tE[1]); ctx.lineTo(tN[0],tN[1]); ctx.closePath(); ctx.fill();
+  // tag
+  ctx.fillStyle = shade(color, 0.12);
+  ctx.beginPath(); ctx.moveTo(tW[0],tW[1]); ctx.lineTo(tN[0],tN[1]); ctx.lineTo(tE[0],tE[1]); ctx.lineTo(tS[0],tS[1]); ctx.closePath(); ctx.fill();
+  return { bN, bE, bS, bW, tN, tE, tS, tW };
+}
+
+/* Gavlhuse: lodret front + valm-agtigt tag tegnet som to mørkere flader */
+function gableRoof(cx, baseY, w, d, wallH, roofH, wallColor, roofColor) {
+  // Nord-gavl (front) — en lysere frontflade med tagkant
+  const hw = w/2, hd = d/2;
+  // Frontvæg (til venstre i iso, mod sydvest): trekant op til mønning
+  ctx.fillStyle = shade(wallColor, -0.05);
+  ctx.beginPath();
+  ctx.moveTo(cx - hw, baseY);            // sydvest-hjørne
+  ctx.lineTo(cx - hw, baseY - wallH);    // op
+  ctx.lineTo(cx,        baseY - wallH - roofH); // topmønstret mønning
+  ctx.lineTo(cx,        baseY - wallH);  // ned til midte
+  ctx.closePath(); ctx.fill();
+  // Højre sidevæg
+  ctx.fillStyle = shade(wallColor, -0.2);
+  ctx.beginPath();
+  ctx.moveTo(cx - hw, baseY);
+  ctx.lineTo(cx + hw, baseY - hd);
+  ctx.lineTo(cx + hw, baseY - hd - wallH);
+  ctx.lineTo(cx, baseY - wallH);
+  ctx.closePath(); ctx.fill();
+  // Tagflade 1 (venstre, mod front)
+  ctx.fillStyle = shade(roofColor, 0.18);
+  ctx.beginPath();
+  ctx.moveTo(cx - hw, baseY - wallH);
+  ctx.lineTo(cx, baseY - wallH);
+  ctx.lineTo(cx, baseY - wallH - roofH - hd/2);
+  ctx.lineTo(cx - hw, baseY - wallH - roofH);
+  ctx.closePath(); ctx.fill();
+  // Tagflade 2 (mørkere)
+  ctx.fillStyle = shade(roofColor, -0.15);
+  ctx.beginPath();
+  ctx.moveTo(cx + hw, baseY - hd - wallH);
+  ctx.lineTo(cx, baseY - wallH);
+  ctx.lineTo(cx, baseY - wallH - roofH - hd/2);
+  ctx.lineTo(cx + hw, baseY - hd - wallH - roofH);
+  ctx.closePath(); ctx.fill();
+}
+
+/* Vinduer: små mørke firkanter med lys-refleksion */
+function windowsOn(x, y, rows, cols, wSize, hSize, gap, litRatio = 0.35) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const lit = ((r*7 + c*13) % 10) < litRatio*10;
+      ctx.fillStyle = lit ? "#ffe9a8" : "rgba(10,20,40,.85)";
+      ctx.fillRect(x + c*(wSize+gap), y - r*(hSize+gap), wSize, hSize);
+    }
+  }
+}
+
+/* ---- Enkeltbygninger (kaldes med centrum af grunden) ---- */
+function drawCabin(cx, cy, lvl) {
+  // skovhytte med træstammer + røg fra skorsten
+  const h = 34 + lvl*6;
+  gableRoof(cx, cy, 56, 34, h, 14, "#8a5a33", "#54382a");
+  // dør + lampe
+  ctx.fillStyle = "#3d2416"; ctx.fillRect(cx-4, cy+2, 9, 12);
+  ctx.fillStyle = "#ffcf70"; ctx.beginPath(); ctx.arc(cx+12, cy+4, 2.4, 0, 7); ctx.fill();
+  windowsOn(cx - 18, cy - h + 8, 1, 2, 6, 7, 6, 0.5);
+}
+function drawHouse(cx, cy, lvl) {
+  const h = 42 + lvl*7;
+  gableRoof(cx, cy, 62, 40, h, 16, "#e8e2d0", "#b3453a");
+  ctx.fillStyle = "#4a2e1d"; ctx.fillRect(cx-5, cy+3, 10, 13);
+  windowsOn(cx - 22, cy - h + 10, 1 + Math.min(1,lvl-1), 3, 7, 8, 8, 0.6);
+  // lille hæk
+  ctx.fillStyle = "#2f7d3a";
+  ctx.beginPath(); ctx.ellipse(cx + 26, cy + 8, 10, 5, 0, 0, 7); ctx.fill();
+}
+function drawVilla(cx, cy, lvl) {
+  const h = 50 + lvl*8;
+  gableRoof(cx, cy, 70, 46, h, 18, "#f2ead6", "#7a4a8f");
+  ctx.fillStyle = "#402a20"; ctx.fillRect(cx-6, cy+4, 12, 15);
+  windowsOn(cx - 24, cy - h + 12, 2, 3, 8, 9, 9, 0.7);
+  // pool-foranstaltning
+  ctx.fillStyle = "#3fd0ff";
+  ctx.beginPath(); ctx.ellipse(cx - 34, cy + 12, 12, 6, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.stroke();
+}
+function drawApart(cx, cy, lvl) {
+  const h = 80 + lvl*18;
+  const b = isoBox(cx, cy, 64, 44, h, "#7d8aa5");
+  windowsOn(cx - 26, cy - h + 14, Math.min(5, 2 + lvl), 4, 7, 8, 10, 0.45);
+  // tagkant + antenne
+  ctx.strokeStyle = "#48566d"; ctx.lineWidth = 2;
+  ctx.strokeRect(b.tW[0]+6, b.tW[1]+8, 44, 22);
+  ctx.beginPath(); ctx.moveTo(cx, cy - h); ctx.lineTo(cx, cy - h - 16); ctx.stroke();
+}
+function drawKiosk(cx, cy, lvl) {
+  const h = 26 + lvl*5;
+  gableRoof(cx, cy, 44, 30, h, 10, "#ffd76e", "#e8833a");
+  // skilt
+  ctx.fillStyle = "#ff5747"; ctx.fillRect(cx - 12, cy - h - 6, 24, 8);
+  ctx.fillStyle = "#fff"; ctx.font = "bold 6px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("KIOSK", cx, cy - h);
+}
+function drawCafe(cx, cy, lvl) {
+  const h = 34 + lvl*6;
+  gableRoof(cx, cy, 58, 38, h, 12, "#e8d8c3", "#c46a4a");
+  // markise + bord + paraply
+  ctx.fillStyle = "#e04a5f";
+  ctx.beginPath(); ctx.moveTo(cx + 14, cy + 6); ctx.lineTo(cx + 38, cy + 14); ctx.lineTo(cx + 38, cy + 22); ctx.lineTo(cx + 14, cy + 14); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#555"; ctx.beginPath(); ctx.moveTo(cx + 34, cy + 24); ctx.lineTo(cx + 34, cy + 12); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx + 34, cy + 24, 5, 0, 7); ctx.fill();
+}
+function drawOffice(cx, cy, lvl) {
+  const h = 90 + lvl*20;
+  isoBox(cx, cy, 62, 42, h, "#4f6d8f");
+  windowsOn(cx - 25, cy - h + 12, Math.min(6, 3 + lvl), 4, 8, 10, 12, 0.6);
+  // neonlogo på tagkanten
+  ctx.fillStyle = "#39ff88"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("NORDIC", cx, cy - h - 6);
+}
+function drawFactory(cx, cy, lvl) {
+  const h = 46 + lvl*8;
+  isoBox(cx, cy, 66, 46, h, "#8a8f98");
+  // skorstene + røg
+  ctx.fillStyle = "#6d7280";
+  ctx.fillRect(cx + 10, cy - h - 26, 9, 34);
+  ctx.fillRect(cx + 24, cy - h - 18, 8, 26);
+  const tm = Date.now() / 600;
+  for (let i = 0; i < 3; i++) {
+    const ph = (tm + i * 0.7) % 3;
+    ctx.fillStyle = `rgba(200,200,210,${0.35 - ph*0.1})`;
+    ctx.beginPath(); ctx.arc(cx + 14 + ph*10, cy - h - 30 - ph*16, 5 + ph*3, 0, 7); ctx.fill();
+  }
+}
+function drawSchool(cx, cy, lvl) {
+  const h = 40 + lvl*6;
+  gableRoof(cx, cy, 66, 44, h, 14, "#f0e6cf", "#3a6ea5");
+  // flagstander med dansk flag
+  ctx.strokeStyle = "#888"; ctx.beginPath(); ctx.moveTo(cx + 30, cy + 8); ctx.lineTo(cx + 30, cy - h - 24); ctx.stroke();
+  const wave = Math.sin(Date.now()/300)*3;
+  ctx.fillStyle = "#c8102e"; ctx.fillRect(cx + 30, cy - h - 22, 16 + wave*0.2, 10);
+  ctx.fillStyle = "#fff"; ctx.fillRect(cx + 30 + 5 + wave*0.1, cy - h - 21, 5, 8);
+  windowsOn(cx - 22, cy - h + 10, 1, 3, 8, 9, 9, 0.5);
+}
+function drawPark(cx, cy, lvl) {
+  // græsplæne med stier + træer + fontæne ved lvl 2+
+  ctx.fillStyle = "#3e8e4f";
+  ctx.beginPath(); ctx.ellipse(cx, cy, 34, 20, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#c9b48a";
+  ctx.fillRect(cx - 3, cy - 18, 6, 36);
+  drawTree(cx - 18, cy - 8, 1);
+  drawTree(cx + 20, cy + 6, 1.2);
+  if (lvl >= 2) drawFountainParts(cx + 18, cy - 12, 0.7);
+  if (lvl >= 3) { ctx.fillStyle = "#ffd76e"; ctx.beginPath(); ctx.arc(cx - 26, cy + 12, 6, 0, 7); ctx.fill(); }
+}
+function drawHospital(cx, cy, lvl) {
+  const h = 70 + lvl*14;
+  isoBox(cx, cy, 64, 46, h, "#f4f4f8");
+  windowsOn(cx - 26, cy - h + 12, Math.min(5, 3+lvl), 4, 8, 10, 12, 0.75);
+  // rødt kors
+  ctx.fillStyle = "#e31b3c";
+  ctx.fillRect(cx - 3, cy - h - 18, 6, 16);
+  ctx.fillRect(cx - 8, cy - h - 13, 16, 6);
+}
+function drawTree(cx, cy, s = 1) {
+  ctx.fillStyle = "#6d4a2f"; ctx.fillRect(cx - 2*s, cy - 2*s, 4*s, 10*s);
+  ctx.fillStyle = "#2f8d3c"; ctx.beginPath(); ctx.arc(cx, cy - 12*s, 10*s, 0, 7); ctx.fill();
+  ctx.fillStyle = "#3fb84f"; ctx.beginPath(); ctx.arc(cx - 4*s, cy - 15*s, 6*s, 0, 7); ctx.fill();
+}
+function drawFountainParts(cx, cy, s = 1) {
+  ctx.fillStyle = "#b9c2cc";
+  ctx.beginPath(); ctx.ellipse(cx, cy, 18*s, 9*s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#3fd0ff"; ctx.beginPath(); ctx.ellipse(cx, cy, 14*s, 6*s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#cfd6de"; ctx.fillRect(cx-2*s, cy - 14*s, 4*s, 14*s);
+  const ph = Date.now() / 400;
+  ctx.fillStyle = "rgba(120,220,255,.8)";
+  for (let i = 0; i < 5; i++) {
+    const a = ph*2 + i*1.26;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a)*10*s, cy - 10*s - Math.abs(Math.sin(a))*8*s, 1.6*s, 0, 7); ctx.fill();
+  }
+}
+function drawStatue(cx, cy, lvl) {
+  drawFountainParts(cx, cy + 6, 0.8);
+  ctx.fillStyle = "#8f97a3"; ctx.fillRect(cx-6, cy - 8, 12, 8);
+  ctx.fillStyle = "#b9c2cc";
+  ctx.beginPath(); ctx.arc(cx, cy - 14, 5, 0, 7); ctx.fill();
+  ctx.fillRect(cx - 2, cy - 12, 4, 8);
+  if (lvl >= 2) { ctx.fillStyle = "#ffd76e"; ctx.beginPath(); ctx.arc(cx, cy - 22, 3, 0, 7); ctx.fill(); }
+}
+function drawTower(cx, cy, lvl) {
+  const h = 120 + lvl*30;
+  isoBox(cx, cy, 40, 32, h, "#5d6b7d");
+  // top-platform + lys
+  ctx.fillStyle = "#48566d";
+  ctx.beginPath(); ctx.moveTo(cx-26, cy-h-2); ctx.lineTo(cx+26, cy-h+12); ctx.lineTo(cx+26, cy-h+22); ctx.lineTo(cx-26, cy-h+8); ctx.closePath(); ctx.fill();
+  const blink = (Date.now()/500|0) % 2 === 0;
+  ctx.fillStyle = blink ? "#ff5a5a" : "rgba(255,90,90,.25)";
+  ctx.beginPath(); ctx.arc(cx, cy - h - 8, 4, 0, 7); ctx.fill();
+}
+function drawStadium(cx, cy, lvl) {
+  const h = 34 + lvl*6;
+  // oval tribune
+  ctx.fillStyle = "#9aa3ad";
+  ctx.beginPath(); ctx.ellipse(cx, cy, 48, 28, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#2f9d4f";
+  ctx.beginPath(); ctx.ellipse(cx, cy - 4, 38, 20, 0, 0, 7); ctx.fill();
+  // løbebane
+  ctx.strokeStyle = "#c8452f"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(cx, cy - 2, 43, 24, 0, 0, 7); ctx.stroke();
+  // fyrtårn-lys
+  ctx.fillStyle = "#fffbe6";
+  ctx.fillRect(cx - 40, cy - 30, 4, 10); ctx.fillRect(cx + 36, cy - 30, 4, 10);
+}
+
+/* Kort type → tegnefunktion */
+const DRAW = {
+  cabin: drawCabin, house: drawHouse, villa: drawVilla, apart: drawApart,
+  kiosk: drawKiosk, cafe: drawCafe, office: drawOffice, factory: drawFactory,
+  school: drawSchool, park: drawPark, hospital: drawHospital, stadium: drawStadium,
+  tree: (cx,cy)=>drawTree(cx,cy,1.4), fountain: (cx,cy,l)=>drawFountainParts(cx,cy,1.2),
+  statue: drawStatue, tower: drawTower,
+};
+
+/* ---------- Rendering af hele byen ---------- */
+let hoverPlot = -1;
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const city = loadCity();
+
+  // baggrund: let gradient-himmel
+  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  sky.addColorStop(0, "#0d1424"); sky.addColorStop(1, "#131c30");
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // stjerner
+  ctx.fillStyle = "rgba(255,255,255,.5)";
+  for (let i = 0; i < 40; i++) {
+    const x = (i*137) % canvas.width, y = (i*89) % 200;
+    ctx.fillRect(x, y, 1.5, 1.5);
+  }
+
+  const drawOrder = [];
+  for (let gy = 0; gy < GRID; gy++) for (let gx = 0; gx < GRID; gx++) {
+    drawOrder.push({ gx, gy, i: gy * GRID + gx });
+  }
+  drawOrder.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
+
+  for (const o of drawOrder) {
+    const plot = city.plots[o.i];
+    const p = tileToScreen(o.gx, o.gy);
+    const cx = p.x, cy = p.y + TILE_H / 2;
+    const isHover = hoverPlot === o.i;
+
+    // mark-grund
+    const v = plotVertices(o.gx, o.gy);
+    ctx.beginPath();
+    ctx.moveTo(v[0][0], v[0][1]); ctx.lineTo(v[1][0], v[1][1]);
+    ctx.lineTo(v[2][0], v[2][1]); ctx.lineTo(v[3][0], v[3][1]); ctx.closePath();
+    ctx.fillStyle = plot ? "#2e4a33" : (isHover ? "#41694a" : "#35543c");
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.stroke();
+
+    // bygning på grunden
+    if (plot) {
+      const B = BUILD_BY_ID[plot.type];
+      DRAW[plot.type](cx, cy, plot.level);
+      // niveau-stjerner over bygningen
+      ctx.fillStyle = "#ffd76e"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("★".repeat(plot.level), cx, cy - 90);
+    } else if (isHover) {
+      ctx.fillStyle = "#fff"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("+", cx, cy - 10);
+    }
+  }
+  requestAnimationFrame(render);
+}
+
+/* ---------- Interaction ---------- */
+function plotAtClick(ev) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (ev.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (ev.clientY - rect.top) * (canvas.height / rect.height);
+  const { x, y } = screenToTile(mx, my);
+  if (x < 0 || y < 0 || x >= GRID || y >= GRID) return -1;
+  return y * GRID + x;
+}
+canvas.addEventListener("mousemove", ev => { hoverPlot = plotAtClick(ev); });
+canvas.addEventListener("mouseleave", () => { hoverPlot = -1; });
+
+canvas.addEventListener("click", ev => {
+  const i = plotAtClick(ev);
+  if (i < 0) return;
+  openBuildModal(i);
+});
+
+/* ---------- HUD ---------- */
+function cityStats() {
+  const city = loadCity();
+  let pop = 0, jobs = 0, happy = 0;
+  city.plots.forEach(p => {
+    if (!p) return;
+    const B = BUILD_BY_ID[p.type];
+    const m = 1 + (p.level - 1) * 0.5;   // opgradering giver +50 % pr. niveau
+    pop  += Math.round(B.pop  * m);
+    jobs += Math.round(B.jobs * m);
+    happy += B.happy;
+  });
+  return { pop, jobs, happy: Math.max(0, Math.min(100, 50 + happy)) };
+}
+function refreshHUD() {
+  const s = cityStats();
+  document.getElementById("hudCoins").textContent = "🪙 " + getUnspentCoins();
+  document.getElementById("hudPop").textContent  = "👥 " + s.pop;
+  document.getElementById("hudJobs").textContent = "💼 " + s.jobs;
+  document.getElementById("hudHappy").textContent = "😊 " + s.happy + "%";
+}
+
+/* ---------- Byg-modal ---------- */
+let currentPlot = -1;
+let currentTab = "home";
+const KATS = [["home","city.tab.home"], ["biz","city.tab.biz"], ["pub","city.tab.pub"], ["deco","city.tab.deco"]];
+
+function upgradeCost(B, level) {
+  return Math.round(B.cost * 0.6 * level);
+}
+
+function openBuildModal(i) {
+  const city = loadCity();
+  currentPlot = i;
+  const plot = city.plots[i];
+  const modal = document.getElementById("buildModal");
+  modal.classList.add("open");
+
+  const title = document.getElementById("buildModalTitle");
+  if (plot) {
+    const B = BUILD_BY_ID[plot.type];
+    const name = getLang() === "da" ? B.da : B.uk;
+    title.textContent = name + " · ★".repeat(plot.level) + " " + t("city.info");
+    renderBuildingActions(plot);
+  } else {
+    title.textContent = t("city.empty");
+    currentTab = "home";
+    renderTabs();
+    renderCatalog();
+  }
+}
+function renderTabs() {
+  const el = document.getElementById("cityTabs");
+  el.innerHTML = "";
+  KATS.forEach(([kat, key]) => {
+    const b = document.createElement("button");
+    b.className = "btn btn--small " + (kat === currentTab ? "" : "btn--ghost");
+    b.textContent = t(key);
+    b.onclick = () => { currentTab = kat; renderTabs(); renderCatalog(); };
+    el.appendChild(b);
+  });
+}
+function renderCatalog() {
+  const el = document.getElementById("cityCatalog");
+  el.innerHTML = "";
+  const level = getLevel();
+  const coins = getUnspentCoins();
+  BUILDINGS.filter(b => b.kat === currentTab).forEach(B => {
+    const locked = level < B.unlock;
+    const afford = coins >= B.cost;
+    const name = getLang() === "da" ? B.da : B.uk;
+    const div = document.createElement("div");
+    div.className = "city-item" + (locked ? " city-item--locked" : "");
+    div.innerHTML =
+      '<div class="city-item__icon">' + emojiFor(B.id) + '</div>' +
+      '<div class="city-item__body">' +
+        '<strong>' + name + '</strong>' +
+        '<span class="muted">' + "👥" + B.pop + " 💼" + B.jobs + " 😊" + B.happy + '</span>' +
+        (locked
+          ? '<span class="city-item__price city-item__price--locked">' + t("city.locked") + " " + B.unlock + "</span>"
+          : '<span class="city-item__price' + (afford ? "" : " city-item__price--poor") + '">🪙 ' + B.cost + "</span>") +
+      '</div>';
+    if (!locked) div.onclick = () => tryBuild(B.id);
+    el.appendChild(div);
+  });
+}
+function emojiFor(id) {
+  return { cabin:"🛖", house:"🏠", villa:"🏡", apart:"🏢", kiosk:"🏪", cafe:"☕",
+           office:"🏢", factory:"🏭", school:"🏫", park:"🌳", hospital:"🏥",
+           stadium:"🏟️", tree:"🌲", fountain:"⛲", statue:"🗿", tower:"🗼" }[id] || "🏠";
+}
+function tryBuild(typeId) {
+  const B = BUILD_BY_ID[typeId];
+  const city = loadCity();
+  if (getUnspentCoins() < B.cost) { showToast(t("city.cant_afford"), true); return; }
+  spendCoins(B.cost);
+  city.plots[currentPlot] = { type: typeId, level: 1 };
+  saveCity(city);
+  const name = getLang() === "da" ? B.da : B.uk;
+  showToast("🎉 " + name + t("city.built"));
+  document.getElementById("buildModal").classList.remove("open");
+  refreshHUD();
+}
+function renderBuildingActions(plot) {
+  const B = BUILD_BY_ID[plot.type];
+  const tabs = document.getElementById("cityTabs");
+  const cat = document.getElementById("cityCatalog");
+  tabs.innerHTML = "";
+  cat.innerHTML = "";
+
+  // Opgrader
+  if (plot.level < B.max) {
+    const cost = upgradeCost(B, plot.level);
+    const afford = getUnspentCoins() >= cost;
+    const btn = document.createElement("button");
+    btn.className = "btn btn--big" + (afford ? "" : " btn--ghost");
+    btn.textContent = "⬆ " + t("city.upgrade") + " (🪙 " + cost + ")";
+    btn.onclick = () => {
+      if (getUnspentCoins() < cost) { showToast(t("city.cant_afford"), true); return; }
+      spendCoins(cost);
+      const c = loadCity();
+      c.plots[currentPlot].level++;
+      saveCity(c);
+      showToast("⬆ " + (getLang() === "da" ? B.da : B.uk) + t("city.upgraded") + c.plots[currentPlot].level);
+      document.getElementById("buildModal").classList.remove("open");
+      refreshHUD();
+    };
+    cat.appendChild(btn);
+  } else {
+    const note = document.createElement("p");
+    note.className = "center";
+    note.textContent = t("city.maxed");
+    cat.appendChild(note);
+  }
+
+  // Riv ned (50 % refunderet)
+  let refund = B.cost / 2;
+  for (let l = 1; l < plot.level; l++) refund += upgradeCost(B, l) / 2;
+  refund = Math.round(refund);
+  const demoBtn = document.createElement("button");
+  demoBtn.className = "btn btn--danger mt-2";
+  demoBtn.textContent = "💣 " + t("city.demo") + " (🪙 " + refund + ")";
+  demoBtn.onclick = () => {
+    if (!confirm((getLang() === "da" ? B.da : B.uk) + " " + t("city.demoed") + "🪙 " + refund + "?")) return;
+    const c = loadCity();
+    c.plots[currentPlot] = null;
+    c.spent -= refund;
+    saveCity(c);
+    document.getElementById("buildModal").classList.remove("open");
+    refreshHUD();
+  };
+  cat.appendChild(demoBtn);
+}
+
+document.getElementById("btnCloseBuild").addEventListener("click", () =>
+  document.getElementById("buildModal").classList.remove("open"));
+
+/* ---------- Init ---------- */
+applyI18n();
+refreshHUD();
+render();
+setInterval(refreshHUD, 2000);   // HUD følger med hvis XP stiger i andet faneblad
+</script>
+</body>
+</html>
