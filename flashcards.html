@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Картки</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -72,8 +72,8 @@
   </div>
 </div>
 
-<script src="data.js?v=3"></script>
-<script src="core.js?v=3"></script>
+<script src="data.js?v=4"></script>
+<script src="core.js?v=4"></script>
 <script>
 let deck = [];        // поточна колода
 let index = 0;        // індекс поточної картки
@@ -87,7 +87,7 @@ function buildDeck() {
   if (mode === "unlearned") {
     deck = WORDS.filter(w => !isLearned(w.id));
     if (deck.length === 0) {
-      alert("🎉 " + t("dash.learnedwords") + " " + TOTAL_WORDS + " / " + TOTAL_WORDS + "!");
+      showToast("🎉 " + t("dash.learnedwords") + " " + TOTAL_WORDS + " / " + TOTAL_WORDS + "!");
       document.getElementById("filterSelect").value = "smart";
       return buildDeck();
     }

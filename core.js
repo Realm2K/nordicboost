@@ -78,12 +78,18 @@ function getMastery(wordId) {
   1) додає XP до загальної кількості
   2) збільшує лічильник вивченості слова на 1
   Повертає ОНОВЛЕНЕ значення mastery цього слова.
+  Бонус: якщо досягнуто нового рівня — показує святкове повідомлення.
 */
 function recordCorrectAnswer(wordId) {
   const progress = loadProgress();
+  const levelBefore = Math.floor(progress.totalXP / CONFIG.XP_PER_LEVEL) + 1;
   progress.totalXP += CONFIG.XP_PER_CORRECT;
   progress.mastery[wordId] = (progress.mastery[wordId] || 0) + 1;
   saveProgress(progress);
+  const levelAfter = Math.floor(progress.totalXP / CONFIG.XP_PER_LEVEL) + 1;
+  if (levelAfter > levelBefore) {
+    showToast("🎉 " + I18N[getLang()]["common.levelup"] + " (" + levelAfter + ")");
+  }
   return progress.mastery[wordId];
 }
 
@@ -217,7 +223,9 @@ const I18N = {
     "blast.xp_label": "Зароблено XP: ", "blast.again": "Грати ще раз 🔄",
     "blast.input_ph": "Введи переклад і натисни Enter…",
     "blast.nice": "💪 Влучно! Наступне слово…", "blast.miss": "❌ Мимо! Спробуй ще…",
-    "common.lang": "Мова"
+    "common.lang": "Мова",
+    "common.levelup": "🎉 НОВИЙ РІВЕНЬ!",
+    "common.xpgain": "XP"
   },
   da: {
     "nav.home": "Hjem", "nav.cards": "Kort", "nav.quiz": "Quiz", "nav.blast": "Word Blast",
@@ -252,7 +260,9 @@ const I18N = {
     "blast.xp_label": "Optjent XP: ", "blast.again": "Spil igen 🔄",
     "blast.input_ph": "Skriv oversættelsen og tryk Enter…",
     "blast.nice": "💪 Ramt! Næste ord…", "blast.miss": "❌ Forbi! Prøv igen…",
-    "common.lang": "Sprog"
+    "common.lang": "Sprog",
+    "common.levelup": "🎉 NYT NIVEAU!",
+    "common.xpgain": "XP"
   }
 };
 
@@ -339,4 +349,50 @@ function smartOrder(wordList) {
     if (sa.box !== sb.box) return sa.box - sb.box;
     return sa.lastSeen - sb.lastSeen;
   });
+}
+
+/* =========================================================
+   UI-ПОЛІШ (v3): вспливаючі повідомлення (toast) та літаючий XP
+   =========================================================
+   Замість грубих alert() — елегантні повідомлення-тости.
+   showXPGain() малює "+10 XP", що спливає вгору і зникає.
+   ========================================================= */
+
+/*
+  Показує toast (маленьке повідомлення знизу по центру).
+  Автоматично зникає через 2.6 секунди.
+*/
+function showToast(text, isError) {
+  // Прибираємо попередній toast, якщо він ще висить
+  document.querySelectorAll(".toast").forEach(el => el.remove());
+
+  const toast = document.createElement("div");
+  toast.className = "toast" + (isError ? " toast--error" : "");
+  toast.textContent = text;
+  document.body.appendChild(toast);
+
+  // Плавна поява
+  requestAnimationFrame(() => toast.classList.add("toast--show"));
+
+  // Автозникнення
+  setTimeout(() => {
+    toast.classList.remove("toast--show");
+    setTimeout(() => toast.remove(), 350);
+  }, 2600);
+}
+
+/*
+  Показує "+10 XP", що спливає вгору від вказаної точки екрана.
+  x, y — координати у пікселях (наприклад, від місця кліку).
+  Використовується у квізі та Word Blast.
+*/
+function showXPGain(x, y, amount) {
+  const el = document.createElement("div");
+  el.className = "xp-float";
+  el.textContent = "+" + amount + " XP";
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+  document.body.appendChild(el);
+  // Після анімації видаляємо елемент з DOM
+  el.addEventListener("animationend", () => el.remove());
 }

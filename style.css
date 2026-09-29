@@ -349,3 +349,143 @@ body::before {
   .btn--big { padding: 14px 22px; font-size: 1rem; flex: 1; }
   .flash-controls { gap: 8px; }
 }
+
+/* =========================================================
+   UI-POLISH v3 — typography, toasts, floating XP, details
+   ========================================================= */
+
+.page-title, .nav__brand, .stat__value, .flashcard__word, .question-word, .modal h2 {
+  font-family: "Bahnschrift", "Segoe UI Semibold", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .3px;
+}
+
+.nav__brand {
+  background: linear-gradient(90deg, var(--neon-green), var(--neon-cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(57,255,136,.35));
+}
+
+/* ===================== TOAST ===================== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(16px);
+  background: rgba(22,27,38,.95);
+  border: 1px solid rgba(57,255,136,.5);
+  color: var(--text);
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: .95rem;
+  box-shadow: 0 0 24px rgba(57,255,136,.25), 0 8px 24px rgba(0,0,0,.4);
+  opacity: 0;
+  transition: opacity .3s ease, transform .3s ease;
+  z-index: 200;
+  pointer-events: none;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast--error {
+  border-color: rgba(255,71,87,.5);
+  box-shadow: 0 0 24px rgba(255,71,87,.25), 0 8px 24px rgba(0,0,0,.4);
+}
+
+/* ===================== FLOATING XP ===================== */
+.xp-float {
+  position: fixed;
+  color: var(--neon-green);
+  font-weight: 900;
+  font-size: 1.25rem;
+  text-shadow: 0 0 12px rgba(57,255,136,.7);
+  pointer-events: none;
+  z-index: 150;
+  animation: xpFloat 1.1s ease-out forwards;
+  transform: translate(-50%, 0);
+}
+@keyframes xpFloat {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(.8); }
+  15%  { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -52px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xp-float { animation-duration: .4s; }
+}
+
+/* ===================== BUTTONS ===================== */
+.btn {
+  background: linear-gradient(135deg, #39ff88, #24d47a);
+  text-shadow: 0 1px 0 rgba(0,0,0,.15);
+}
+.btn:active { transform: translateY(1px) scale(.98); }
+
+/* ===================== MODE CARDS: icon tilt ===================== */
+.mode-card { will-change: transform; }
+.mode-icon { transition: transform .22s ease; }
+.mode-card:hover .mode-icon {
+  transform: scale(1.18) rotate(-4deg);
+}
+
+/* ===================== FLASHCARD springy flip ===================== */
+.flashcard__inner { transition: transform .55s cubic-bezier(.34,1.4,.44,1); }
+
+/* ===================== QUIZ OPTIONS: number badge ===================== */
+.quiz-option {
+  position: relative;
+  padding-left: 56px;
+  overflow: hidden;
+  transition: all .15s ease;
+}
+.quiz-option::before {
+  content: attr(data-n);
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 42px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800;
+  color: var(--text-dim);
+  background: rgba(255,255,255,.04);
+  border-right: 1px solid var(--border);
+}
+.quiz-option:hover:not(:disabled) { transform: translateX(4px); }
+
+/* ===================== PROGRESS BARS: shimmer ===================== */
+.progress { position: relative; }
+.progress__fill::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%);
+  animation: shimmer 2.4s linear infinite;
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress__fill::after { animation: none; }
+}
+
+/* ===================== MODAL pop ===================== */
+.modal-overlay.open .modal {
+  animation: modalPop .35s cubic-bezier(.34,1.5,.5,1);
+}
+@keyframes modalPop {
+  from { transform: scale(.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ===================== SCROLLBAR (WebKit) ===================== */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--bg-input);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: #2a3245; }

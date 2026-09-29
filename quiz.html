@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Квіз</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -40,8 +40,8 @@
   </div>
 </main>
 
-<script src="data.js?v=3"></script>
-<script src="core.js?v=3"></script>
+<script src="data.js?v=4"></script>
+<script src="core.js?v=4"></script>
 <script>
 let currentWord = null;
 let sessionXP = 0;
@@ -75,11 +75,19 @@ function nextQuestion() {
 
   const container = document.getElementById("options");
   container.innerHTML = "";
-  options.forEach(opt => {
+  options.forEach((opt, i) => {
     const btn = document.createElement("button");
     btn.className = "quiz-option";
     btn.textContent = opt.da;
-    btn.addEventListener("click", () => checkAnswer(btn, opt));
+    btn.setAttribute("data-n", (i + 1));   // номер для стилю з бейджем
+    btn.addEventListener("click", e => {
+      checkAnswer(btn, opt);
+      if (opt.id === currentWord.id) {
+        // Літаючий "+10 XP" від місця кліку
+        const r = btn.getBoundingClientRect();
+        showXPGain(r.left + r.width / 2, r.top, CONFIG.XP_PER_CORRECT);
+      }
+    });
     container.appendChild(btn);
   });
 }
