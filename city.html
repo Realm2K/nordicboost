@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Min by</title>
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 
@@ -68,8 +68,8 @@
   </div>
 </main>
 
-<script src="data.js?v=10"></script>
-<script src="core.js?v=10"></script>
+<script src="data.js?v=11"></script>
+<script src="core.js?v=11"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -148,22 +148,25 @@ function spendCoins(n) {
 
 /* ---------- Kamera: pan + zoom (træk for at flytte, scroll/pinch for zoom) ---------- */
 const cam = { x: 0, y: 0, zoom: 1 };
-function applyCam(mx, my) {         // skærm → verden
-  return { x: (mx - canvas.width/2) / cam.zoom - cam.x,
-           y: (my - 60) / cam.zoom - cam.y };
+/* render() sætter ÉN canvas-transform (translate/scale) — det er kameraet.
+   tileToScreen leverer derfor RENE VERDENS-koordinater (uden cam/zoom),
+   ellers bliver kameraet anvendt dobbelt og felterne glider fra hinanden. */
+function applyCam(mx, my) {         // skærm → verden (inverse af render-transformen)
+  return { x: (mx - canvas.width/2) / cam.zoom - cam.x + canvas.width/2,
+           y: (my - 60) / cam.zoom - cam.y + 60 };
 }
 function tileToScreen(gx, gy) {
-  const wx = (gx - gy) * (TILE_W / 2);
-  const wy = (gx + gy) * (TILE_H / 2);
   return {
-    x: canvas.width  / 2 + (wx + cam.x) * cam.zoom,
-    y: 60            + (wy + cam.y) * cam.zoom,
+    x: canvas.width  / 2 + (gx - gy) * (TILE_W / 2),
+    y: 60            + (gx + gy) * (TILE_H / 2),
   };
 }
 function screenToTile(mx, my) {
-  const w = applyCam(mx, my);
-  const gx = (w.x / (TILE_W/2) + w.y / (TILE_H/2)) / 2;
-  const gy = (w.y / (TILE_H/2) - w.x / (TILE_W/2)) / 2;
+  const w = applyCam(mx, my);          // verden (origo stadig i w/2,60)
+  const ox = w.x - canvas.width/2;     // relativt til iso-origo
+  const oy = w.y - 60;
+  const gx = (ox / (TILE_W/2) + oy / (TILE_H/2)) / 2;
+  const gy = (oy / (TILE_H/2) - ox / (TILE_W/2)) / 2;
   return { x: Math.floor(gx), y: Math.floor(gy) };
 }
 function plotVertices(gx, gy) {
@@ -177,243 +180,424 @@ function plotVertices(gx, gy) {
 }
 
 /* =====================================================================
-   🎨 MODELLER — hvert byggværk tegnes med skygger, facader og detaljer
+   🎨 MODELLER v2 — bygget som rigtige iso-bokse med lys/skygge, tag-
+   flader, vinduesrammer, skorstene, detaljer og jord-skygger.
+   Alle modeller tegnes i VERDENS-koordinater (kameraet klarer resten).
    ===================================================================== */
 
+/* Farvehjælpere */
 function shade(hex, f) {
-  // gør en farve lysere (f>0) eller mørkere (f<0)
   const n = parseInt(hex.slice(1), 16);
   let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   if (f >= 0) { r += (255-r)*f; g += (255-g)*f; b += (255-b)*f; }
   else { r *= (1+f); g *= (1+f); b *= (1+f); }
   return `rgb(${r|0},${g|0},${b|0})`;
 }
+/* Lys retning: venstre facade = mørk (modlys), højre = mellem, top = lys */
+const L = { dark: -0.32, mid: -0.14, light: 0.10 };
 
-/* Rejser en iso-boks med to synlige facader + tag.
-   cx,cy = bundens centrum (midt af grunden), w/d = fodaftryk, h = højde */
+/* --- Grundlæggende iso-boks med blød jord-skygge ---
+   cx,cy: bundens centrum i verden; w,d: fodaftryk; h: højde */
 function isoBox(cx, cy, w, d, h, color, opts = {}) {
   const hw = w/2, hd = d/2;
-  // hjørner nedefra og op
-  const bN = [cx, cy - hd], bE = [cx + hw, cy], bS = [cx, cy + hd], bW = [cx - hw, cy];
-  const top = h;
-  const tN = [bN[0], bN[1] - top], tE = [bE[0], bE[1] - top],
-        tS = [bS[0], bS[1] - top], tW = [bW[0], bW[1] - top];
-  // venstre facade (mørkere)
-  ctx.fillStyle = shade(color, -0.28);
-  ctx.beginPath(); ctx.moveTo(bW[0],bW[1]); ctx.lineTo(bN[0],bN[1]); ctx.lineTo(tN[0],tN[1]); ctx.lineTo(tW[0],tW[1]); ctx.closePath(); ctx.fill();
+  // blød skygge på jorden
+  if (!opts.noShadow) {
+    ctx.fillStyle = "rgba(0,0,0,.25)";
+    ctx.beginPath();
+    ctx.ellipse(cx + h*0.18, cy + hd*0.4, hw*1.25, hd*0.9, 0, 0, 7);
+    ctx.fill();
+  }
+  const bN = [cx, cy-hd], bE = [cx+hw, cy], bS = [cx, cy+hd], bW = [cx-hw, cy];
+  const up = p => [p[0], p[1]-h];
+  const tN=up(bN), tE=up(bE), tS=up(bS), tW=up(bW);
+  // venstre facade
+  ctx.fillStyle = shade(color, L.dark);
+  ctx.beginPath(); ctx.moveTo(...bW); ctx.lineTo(...bN); ctx.lineTo(...tN); ctx.lineTo(...tW); ctx.closePath(); ctx.fill();
   // højre facade
-  ctx.fillStyle = shade(color, -0.12);
-  ctx.beginPath(); ctx.moveTo(bN[0],bN[1]); ctx.lineTo(bE[0],bE[1]); ctx.lineTo(tE[0],tE[1]); ctx.lineTo(tN[0],tN[1]); ctx.closePath(); ctx.fill();
-  // tag
-  ctx.fillStyle = shade(color, 0.12);
-  ctx.beginPath(); ctx.moveTo(tW[0],tW[1]); ctx.lineTo(tN[0],tN[1]); ctx.lineTo(tE[0],tE[1]); ctx.lineTo(tS[0],tS[1]); ctx.closePath(); ctx.fill();
-  return { bN, bE, bS, bW, tN, tE, tS, tW };
+  ctx.fillStyle = shade(color, L.mid);
+  ctx.beginPath(); ctx.moveTo(...bN); ctx.lineTo(...bE); ctx.lineTo(...tE); ctx.lineTo(...tN); ctx.closePath(); ctx.fill();
+  // top
+  ctx.fillStyle = shade(color, L.light);
+  ctx.beginPath(); ctx.moveTo(...tW); ctx.lineTo(...tN); ctx.lineTo(...tE); ctx.lineTo(...tS); ctx.closePath(); ctx.fill();
+  return { bN, bE, bS, bW, tN, tE, tS, tW, hw, hd };
 }
 
-/* Gavlhuse: lodret front + valm-agtigt tag tegnet som to mørkere flader */
-function gableRoof(cx, baseY, w, d, wallH, roofH, wallColor, roofColor) {
-  // Nord-gavl (front) — en lysere frontflade med tagkant
-  const hw = w/2, hd = d/2;
-  // Frontvæg (til venstre i iso, mod sydvest): trekant op til mønning
-  ctx.fillStyle = shade(wallColor, -0.05);
-  ctx.beginPath();
-  ctx.moveTo(cx - hw, baseY);            // sydvest-hjørne
-  ctx.lineTo(cx - hw, baseY - wallH);    // op
-  ctx.lineTo(cx,        baseY - wallH - roofH); // topmønstret mønning
-  ctx.lineTo(cx,        baseY - wallH);  // ned til midte
-  ctx.closePath(); ctx.fill();
-  // Højre sidevæg
-  ctx.fillStyle = shade(wallColor, -0.2);
-  ctx.beginPath();
-  ctx.moveTo(cx - hw, baseY);
-  ctx.lineTo(cx + hw, baseY - hd);
-  ctx.lineTo(cx + hw, baseY - hd - wallH);
-  ctx.lineTo(cx, baseY - wallH);
-  ctx.closePath(); ctx.fill();
-  // Tagflade 1 (venstre, mod front)
-  ctx.fillStyle = shade(roofColor, 0.18);
-  ctx.beginPath();
-  ctx.moveTo(cx - hw, baseY - wallH);
-  ctx.lineTo(cx, baseY - wallH);
-  ctx.lineTo(cx, baseY - wallH - roofH - hd/2);
-  ctx.lineTo(cx - hw, baseY - wallH - roofH);
-  ctx.closePath(); ctx.fill();
-  // Tagflade 2 (mørkere)
-  ctx.fillStyle = shade(roofColor, -0.15);
-  ctx.beginPath();
-  ctx.moveTo(cx + hw, baseY - hd - wallH);
-  ctx.lineTo(cx, baseY - wallH);
-  ctx.lineTo(cx, baseY - wallH - roofH - hd/2);
-  ctx.lineTo(cx + hw, baseY - hd - wallH - roofH);
-  ctx.closePath(); ctx.fill();
-}
-
-/* Vinduer: små mørke firkanter med lys-refleksion */
-function windowsOn(x, y, rows, cols, wSize, hSize, gap, litRatio = 0.35) {
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const lit = ((r*7 + c*13) % 10) < litRatio*10;
-      ctx.fillStyle = lit ? "#ffe9a8" : "rgba(10,20,40,.85)";
-      ctx.fillRect(x + c*(wSize+gap), y - r*(hSize+gap), wSize, hSize);
-    }
+/* vindues-ruder MED rammer på en facade (x,y = øverste venstre hjørne) */
+function winGrid(x, y, rows, cols, wS, hS, gapX, gapY, litRatio = 0.4) {
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const wx = x + c*(wS+gapX), wy = y + r*(hS+gapY);
+    const lit = ((r*7 + c*13) % 10) < litRatio*10;
+    ctx.fillStyle = "#1b2b45";                      // ramme
+    ctx.fillRect(wx-1.5, wy-1.5, wS+3, hS+3);
+    const g = ctx.createLinearGradient(wx, wy, wx, wy+hS);
+    if (lit) { g.addColorStop(0, "#ffe9a8"); g.addColorStop(1, "#f5b74e"); }
+    else { g.addColorStop(0, "#3a5f8a"); g.addColorStop(1, "#22344f"); }
+    ctx.fillStyle = g;
+    ctx.fillRect(wx, wy, wS, hS);
+    ctx.fillStyle = "rgba(255,255,255,.25)";        // refleksion
+    ctx.fillRect(wx, wy, wS, 1.5);
   }
 }
 
-/* ---- Enkeltbygninger (kaldes med centrum af grunden) ---- */
+/* Sadeltag (gable) med tagpap/mønster + rygning */
+function gableRoof(cx, cy, w, d, wallH, roofH, wallColor, roofColor) {
+  const hw = w/2, hd = d/2;
+  // vægge først (to synlige flader, husket fra isoBox-stil)
+  ctx.fillStyle = shade(wallColor, L.dark);
+  ctx.beginPath(); ctx.moveTo(cx-hw, cy); ctx.lineTo(cx, cy-hd); ctx.lineTo(cx, cy-hd-wallH); ctx.lineTo(cx-hw, cy-wallH); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = shade(wallColor, L.mid);
+  ctx.beginPath(); ctx.moveTo(cx, cy-hd); ctx.lineTo(cx+hw, cy); ctx.lineTo(cx+hw, cy-wallH); ctx.lineTo(cx, cy-hd-wallH); ctx.closePath(); ctx.fill();
+  // gavltrekanter
+  ctx.fillStyle = shade(wallColor, 0);
+  ctx.beginPath(); ctx.moveTo(cx-hw, cy-wallH); ctx.lineTo(cx, cy-hd-wallH); ctx.lineTo(cx, cy-hd-wallH-roofH); ctx.closePath(); ctx.fill();
+  // tagflader med skifte-mønster
+  const rows = 4;
+  for (let i = 0; i < rows; i++) {
+    const t0 = i/rows, t1 = (i+1)/rows;
+    ctx.fillStyle = shade(roofColor, (i%2 ? 0.06 : -0.06));
+    // venstre tagflade (mod sydvest)
+    ctx.beginPath();
+    ctx.moveTo(cx-hw + (hw)*t0,        cy - wallH - roofH*t0 - hd*t0);
+    ctx.lineTo(cx-hw + (hw)*t1,        cy - wallH - roofH*t1 - hd*t1);
+    ctx.lineTo(         0 + (hw)*t1,  cy - hd - wallH - roofH*t1);
+    ctx.lineTo(         0 + (hw)*t0,  cy - hd - wallH - roofH*t0);
+    ctx.closePath(); ctx.fill();
+    // højre tagflade (mørkere)
+    ctx.fillStyle = shade(roofColor, (i%2 ? -0.10 : -0.20));
+    ctx.beginPath();
+    ctx.moveTo(cx+hw - (hw)*t0,        cy - wallH - roofH*t0 - hd*t0);
+    ctx.lineTo(cx+hw - (hw)*t1,        cy - wallH - roofH*t1 - hd*t1);
+    ctx.lineTo(         0 + (hw)*t1,  cy - hd - wallH - roofH*t1);
+    ctx.lineTo(         0 + (hw)*t0,  cy - hd - wallH - roofH*t0);
+    ctx.closePath(); ctx.fill();
+  }
+  // rygning
+  ctx.strokeStyle = shade(roofColor, 0.35); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, cy - hd - wallH - roofH); ctx.lineTo(cx, cy - wallH - roofH + hd); ctx.stroke();
+}
+
+/* Dør med lille trappetrin */
+function door(cx, baseY, wD = 10, hD = 14, color = "#3d2416") {
+  ctx.fillStyle = "#9aa3ad";
+  ctx.fillRect(cx - wD/2 - 2, baseY + hD - 2, wD + 4, 4);   // trin
+  ctx.fillStyle = color;
+  ctx.fillRect(cx - wD/2, baseY, wD, hD);
+  ctx.fillStyle = "#ffd76e";
+  ctx.beginPath(); ctx.arc(cx + wD/2 - 2, baseY + hD/2, 1.3, 0, 7); ctx.fill();   // håndtag
+}
+
+/* Skorsten med murstensbånd + evig røg */
+function chimney(cx, baseY, h, color = "#8a4a3a") {
+  const w = 9;
+  ctx.fillStyle = shade(color, L.dark);
+  ctx.fillRect(cx - w/2, baseY - h, w, h);
+  ctx.fillStyle = shade(color, L.light);
+  ctx.fillRect(cx - w/2 - 1, baseY - h - 3, w + 2, 5);       // munding
+  const tm = Date.now() / 900;
+  for (let i = 0; i < 4; i++) {
+    const ph = (tm + i*0.6) % 3;
+    ctx.fillStyle = `rgba(215,215,225,${0.30 - ph*0.08})`;
+    ctx.beginPath();
+    ctx.arc(cx + Math.sin(ph*2 + i)*4 + ph*7, baseY - h - 6 - ph*14, 2.5 + ph*3, 0, 7);
+    ctx.fill();
+  }
+}
+
+/* ============ BOLIGER ============ */
 function drawCabin(cx, cy, lvl) {
-  // skovhytte med træstammer + røg fra skorsten
-  const h = 34 + lvl*6;
-  gableRoof(cx, cy, 56, 34, h, 14, "#8a5a33", "#54382a");
-  // dør + lampe
-  ctx.fillStyle = "#3d2416"; ctx.fillRect(cx-4, cy+2, 9, 12);
-  ctx.fillStyle = "#ffcf70"; ctx.beginPath(); ctx.arc(cx+12, cy+4, 2.4, 0, 7); ctx.fill();
-  windowsOn(cx - 18, cy - h + 8, 1, 2, 6, 7, 6, 0.5);
+  const s = 0.9 + lvl*0.1;
+  // stammer på facaden
+  gableRoof(cx, cy, 56*s, 34*s, 30*s, 15*s, "#8a5a33", "#54382a");
+  ctx.strokeStyle = "rgba(60,35,15,.5)"; ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {                                // vandrette stamme-linjer
+    ctx.beginPath(); ctx.moveTo(cx-28*s, cy - i*7*s); ctx.lineTo(cx, cy-17*s - i*7*s); ctx.stroke();
+  }
+  door(cx - 8*s, cy - 2*s, 9*s, 12*s);
+  winGrid(cx + 6*s, cy - 22*s, 1, 2, 6*s, 7*s, 5*s, 0, 0.7);
+  chimney(cx + 14*s, cy - 34*s, 12*s, "#6d4a2f");
 }
 function drawHouse(cx, cy, lvl) {
-  const h = 42 + lvl*7;
-  gableRoof(cx, cy, 62, 40, h, 16, "#e8e2d0", "#b3453a");
-  ctx.fillStyle = "#4a2e1d"; ctx.fillRect(cx-5, cy+3, 10, 13);
-  windowsOn(cx - 22, cy - h + 10, 1 + Math.min(1,lvl-1), 3, 7, 8, 8, 0.6);
-  // lille hæk
+  const s = 0.9 + lvl*0.1;
+  gableRoof(cx, cy, 62*s, 40*s, 36*s, 17*s, "#e8e2d0", "#b3453a");
+  door(cx, cy - 2*s, 10*s, 14*s, "#4a2e1d");
+  winGrid(cx - 24*s, cy - 30*s, 1, 2, 7*s, 8*s, 7*s, 0, 0.55);
+  winGrid(cx + 8*s, cy - 26*s, 1, 2, 7*s, 8*s, 7*s, 0, 0.55);
+  chimney(cx - 16*s, cy - 40*s, 14*s, "#9c5a48");
+  // hæk
   ctx.fillStyle = "#2f7d3a";
-  ctx.beginPath(); ctx.ellipse(cx + 26, cy + 8, 10, 5, 0, 0, 7); ctx.fill();
+  for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(cx - 20*s + i*9*s, cy + 12*s, 5*s, 0, 7); ctx.fill(); }
 }
 function drawVilla(cx, cy, lvl) {
-  const h = 50 + lvl*8;
-  gableRoof(cx, cy, 70, 46, h, 18, "#f2ead6", "#7a4a8f");
-  ctx.fillStyle = "#402a20"; ctx.fillRect(cx-6, cy+4, 12, 15);
-  windowsOn(cx - 24, cy - h + 12, 2, 3, 8, 9, 9, 0.7);
-  // pool-foranstaltning
-  ctx.fillStyle = "#3fd0ff";
-  ctx.beginPath(); ctx.ellipse(cx - 34, cy + 12, 12, 6, 0, 0, 7); ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.stroke();
+  const s = 0.9 + lvl*0.12;
+  gableRoof(cx, cy, 72*s, 46*s, 44*s, 20*s, "#f2ead6", "#7a4a8f");
+  door(cx, cy - 2*s, 11*s, 16*s, "#402a20");
+  winGrid(cx - 27*s, cy - 36*s, 2, 2, 8*s, 9*s, 9*s, 8*s, 0.7);
+  winGrid(cx + 12*s, cy - 30*s, 1, 3, 8*s, 9*s, 8*s, 0, 0.7);
+  chimney(cx + 20*s, cy - 46*s, 14*s, "#6d5a70");
+  // pool med glans
+  const pg = ctx.createLinearGradient(cx-40*s, cy+8, cx-16*s, cy+18);
+  pg.addColorStop(0, "#5fd8ff"); pg.addColorStop(1, "#2ba8e0");
+  ctx.fillStyle = pg;
+  ctx.beginPath(); ctx.ellipse(cx - 28*s, cy + 13*s, 13*s, 6.5*s, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(cx - 30*s, cy + 11*s, 7*s, 2.5*s, 0, 0, 7); ctx.stroke();
 }
 function drawApart(cx, cy, lvl) {
-  const h = 80 + lvl*18;
+  const floors = 4 + Math.min(3, lvl-1);
+  const h = floors * 16;
   const b = isoBox(cx, cy, 64, 44, h, "#7d8aa5");
-  windowsOn(cx - 26, cy - h + 14, Math.min(5, 2 + lvl), 4, 7, 8, 10, 0.45);
+  // vinduer på begge facader med etage-markering
+  for (const [x0, y0, cols] of [[cx-27, 10, 3],[cx+3, 22, 3]]) {
+    for (let f = 0; f < floors - 1; f++) {
+      winGrid(x0, cy - h + 12 + f*16, 1, cols, 7, 8, 10, 0, 0.45);
+    }
+  }
   // tagkant + antenne
-  ctx.strokeStyle = "#48566d"; ctx.lineWidth = 2;
-  ctx.strokeRect(b.tW[0]+6, b.tW[1]+8, 44, 22);
-  ctx.beginPath(); ctx.moveTo(cx, cy - h); ctx.lineTo(cx, cy - h - 16); ctx.stroke();
+  ctx.fillStyle = "#48566d";
+  ctx.beginPath(); ctx.moveTo(b.tW[0]+4, b.tW[1]+4); ctx.lineTo(b.tN[0], b.tN[1]+4);
+  ctx.lineTo(b.tE[0], b.tE[1]+4); ctx.lineTo(b.tS[0], b.tS[1]+4); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#aebbcc"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, b.tN[1]); ctx.lineTo(cx, b.tN[1]-14); ctx.stroke();
+  ctx.fillStyle = "#39ff88";
+  ctx.beginPath(); ctx.arc(cx, b.tN[1]-16, 2, 0, 7); ctx.fill();
 }
+
+/* ============ VIRKSOMHEDER ============ */
 function drawKiosk(cx, cy, lvl) {
-  const h = 26 + lvl*5;
-  gableRoof(cx, cy, 44, 30, h, 10, "#ffd76e", "#e8833a");
-  // skilt
-  ctx.fillStyle = "#ff5747"; ctx.fillRect(cx - 12, cy - h - 6, 24, 8);
-  ctx.fillStyle = "#fff"; ctx.font = "bold 6px sans-serif"; ctx.textAlign = "center";
-  ctx.fillText("KIOSK", cx, cy - h);
+  const s = 0.9 + lvl*0.1;
+  gableRoof(cx, cy, 44*s, 30*s, 24*s, 10*s, "#ffd76e", "#e8833a");
+  // skilt med tekst
+  ctx.fillStyle = "#ff5747";
+  ctx.fillRect(cx - 13*s, cy - 30*s, 26*s, 9*s);
+  ctx.fillStyle = "#fff"; ctx.font = `bold ${6*s}px sans-serif`; ctx.textAlign = "center";
+  ctx.fillText("KIOSK", cx, cy - 23.5*s);
+  door(cx, cy - 1*s, 8*s, 10*s, "#7a4a2f");
+  winGrid(cx + 8*s, cy - 18*s, 1, 1, 7*s, 6*s, 0, 0, 0.8);
 }
 function drawCafe(cx, cy, lvl) {
-  const h = 34 + lvl*6;
-  gableRoof(cx, cy, 58, 38, h, 12, "#e8d8c3", "#c46a4a");
-  // markise + bord + paraply
+  const s = 0.9 + lvl*0.1;
+  gableRoof(cx, cy, 58*s, 38*s, 30*s, 13*s, "#e8d8c3", "#c46a4a");
+  // markise (stripet)
+  const aw = 26*s;
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = i % 2 ? "#e04a5f" : "#f6f2ea";
+    ctx.fillRect(cx + 10*s + i*aw/6, cy + 4*s, aw/6 + 1, 10*s);
+  }
+  winGrid(cx - 22*s, cy - 24*s, 1, 2, 7*s, 8*s, 7*s, 0, 0.8);
+  // parasol + bord
+  const px = cx + 34*s;
+  ctx.strokeStyle = "#7a6a55"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(px, cy + 12*s); ctx.lineTo(px, cy - 6*s); ctx.stroke();
   ctx.fillStyle = "#e04a5f";
-  ctx.beginPath(); ctx.moveTo(cx + 14, cy + 6); ctx.lineTo(cx + 38, cy + 14); ctx.lineTo(cx + 38, cy + 22); ctx.lineTo(cx + 14, cy + 14); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = "#555"; ctx.beginPath(); ctx.moveTo(cx + 34, cy + 24); ctx.lineTo(cx + 34, cy + 12); ctx.stroke();
-  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx + 34, cy + 24, 5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(px-10*s, cy-4*s); ctx.lineTo(px, cy-12*s); ctx.lineTo(px+10*s, cy-4*s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#f6f2ea"; ctx.beginPath(); ctx.arc(px, cy + 12*s, 5*s, 0, 7); ctx.fill();
 }
 function drawOffice(cx, cy, lvl) {
-  const h = 90 + lvl*20;
-  isoBox(cx, cy, 62, 42, h, "#4f6d8f");
-  windowsOn(cx - 25, cy - h + 12, Math.min(6, 3 + lvl), 4, 8, 10, 12, 0.6);
-  // neonlogo på tagkanten
-  ctx.fillStyle = "#39ff88"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-  ctx.fillText("NORDIC", cx, cy - h - 6);
+  const h = 88 + lvl*20;
+  const b = isoBox(cx, cy, 62, 42, h, "#4f6d8f");
+  // glas-facade: store blå ruder
+  for (const [x0, cols] of [[cx-26, 4],[cx+4, 4]]) {
+    for (let f = 0; f < Math.floor(h/14) - 2; f++) {
+      winGrid(x0, cy - h + 10 + f*14, 1, cols, 8, 9, 8, 0, 0.65);
+    }
+  }
+  // neonlogo
+  ctx.fillStyle = "#39ff88"; ctx.font = "bold 8px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("NORDIC", cx, cy - h - 8);
+  ctx.shadowColor = "#39ff88"; ctx.shadowBlur = 6;
+  ctx.fillText("NORDIC", cx, cy - h - 8);
+  ctx.shadowBlur = 0;
 }
 function drawFactory(cx, cy, lvl) {
-  const h = 46 + lvl*8;
-  isoBox(cx, cy, 66, 46, h, "#8a8f98");
-  // skorstene + røg
-  ctx.fillStyle = "#6d7280";
-  ctx.fillRect(cx + 10, cy - h - 26, 9, 34);
-  ctx.fillRect(cx + 24, cy - h - 18, 8, 26);
-  const tm = Date.now() / 600;
-  for (let i = 0; i < 3; i++) {
-    const ph = (tm + i * 0.7) % 3;
-    ctx.fillStyle = `rgba(200,200,210,${0.35 - ph*0.1})`;
-    ctx.beginPath(); ctx.arc(cx + 14 + ph*10, cy - h - 30 - ph*16, 5 + ph*3, 0, 7); ctx.fill();
+  const h = 42 + lvl*8;
+  const b = isoBox(cx, cy, 66, 46, h, "#8a8f98");
+  // savtand-tag (zigzag) på toppen
+  ctx.fillStyle = shade("#6d7280", L.mid);
+  ctx.beginPath();
+  ctx.moveTo(b.tW[0]+6, b.tW[1]+4);
+  for (let i = 0; i <= 4; i++) {
+    const t = i/4;
+    ctx.lineTo(b.tW[0]+6+(b.tN[0]-b.tW[0])*t, b.tW[1]+4+(b.tN[1]-b.tW[1])*t - (i%2 ? 0 : 8));
   }
+  ctx.lineTo(b.tN[0], b.tN[1]+4); ctx.lineTo(b.tW[0]+6, b.tW[1]+4); ctx.closePath(); ctx.fill();
+  // skorstene + røg
+  chimney(cx + 12, cy - h + 6, 26, "#7a4a3a");
+  chimney(cx + 26, cy - h + 12, 20, "#7a4a3a");
+  // port
+  ctx.fillStyle = "#3a3f47";
+  ctx.fillRect(cx - 14, cy - 16, 22, 16);
+  ctx.strokeStyle = "#ffd76e"; ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 14, cy - 16, 22, 16);
 }
+
+/* ============ OFFENTLIGE ============ */
 function drawSchool(cx, cy, lvl) {
-  const h = 40 + lvl*6;
-  gableRoof(cx, cy, 66, 44, h, 14, "#f0e6cf", "#3a6ea5");
-  // flagstander med dansk flag
-  ctx.strokeStyle = "#888"; ctx.beginPath(); ctx.moveTo(cx + 30, cy + 8); ctx.lineTo(cx + 30, cy - h - 24); ctx.stroke();
-  const wave = Math.sin(Date.now()/300)*3;
-  ctx.fillStyle = "#c8102e"; ctx.fillRect(cx + 30, cy - h - 22, 16 + wave*0.2, 10);
-  ctx.fillStyle = "#fff"; ctx.fillRect(cx + 30 + 5 + wave*0.1, cy - h - 21, 5, 8);
-  windowsOn(cx - 22, cy - h + 10, 1, 3, 8, 9, 9, 0.5);
+  const s = 0.9 + lvl*0.1;
+  gableRoof(cx, cy, 68*s, 44*s, 36*s, 15*s, "#f0e6cf", "#3a6ea5");
+  door(cx, cy - 1*s, 11*s, 15*s, "#3d2416");
+  winGrid(cx - 26*s, cy - 28*s, 1, 3, 8*s, 9*s, 9*s, 0, 0.6);
+  // flagstander + DANNEBROG
+  const fx = cx + 32*s;
+  ctx.strokeStyle = "#9aa3ad"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(fx, cy + 6*s); ctx.lineTo(fx, cy - 58*s); ctx.stroke();
+  const wave = Math.sin(Date.now()/350)*2;
+  ctx.fillStyle = "#c8102e";
+  ctx.beginPath(); ctx.moveTo(fx, cy-58*s); ctx.lineTo(fx+20*s+wave, cy-54*s);
+  ctx.lineTo(fx+20*s-wave, cy-45*s); ctx.lineTo(fx, cy-48*s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.moveTo(fx, cy-56*s); ctx.lineTo(fx+7*s+wave*.5, cy-54.5*s);
+  ctx.lineTo(fx+7*s-wave*.5, cy-49.5*s); ctx.lineTo(fx, cy-51*s); ctx.closePath(); ctx.fill();
+  // skole-skilt
+  ctx.fillStyle = "#3a6ea5"; ctx.fillRect(cx - 12*s, cy - 44*s, 24*s, 7*s);
+  ctx.fillStyle = "#fff"; ctx.font = `bold ${5*s}px sans-serif`; ctx.textAlign = "center";
+  ctx.fillText("SKOLE", cx, cy - 39*s);
 }
 function drawPark(cx, cy, lvl) {
-  // græsplæne med stier + træer + fontæne ved lvl 2+
-  ctx.fillStyle = "#3e8e4f";
-  ctx.beginPath(); ctx.ellipse(cx, cy, 34, 20, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = "#c9b48a";
-  ctx.fillRect(cx - 3, cy - 18, 6, 36);
-  drawTree(cx - 18, cy - 8, 1);
-  drawTree(cx + 20, cy + 6, 1.2);
-  if (lvl >= 2) drawFountainParts(cx + 18, cy - 12, 0.7);
-  if (lvl >= 3) { ctx.fillStyle = "#ffd76e"; ctx.beginPath(); ctx.arc(cx - 26, cy + 12, 6, 0, 7); ctx.fill(); }
+  // græs med let tekstur
+  const gg = ctx.createRadialGradient(cx-10, cy-6, 4, cx, cy, 34);
+  gg.addColorStop(0, "#4aa85c"); gg.addColorStop(1, "#357a43");
+  ctx.fillStyle = gg;
+  ctx.beginPath(); ctx.ellipse(cx, cy, 34, 19, 0, 0, 7); ctx.fill();
+  // sti
+  ctx.strokeStyle = "#c9b48a"; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(cx - 2, cy - 14); ctx.quadraticCurveTo(cx + 10, cy, cx - 2, cy + 15); ctx.stroke();
+  drawTree(cx - 18, cy - 6, 1.1);
+  drawTree(cx + 20, cy + 7, 1.35);
+  if (lvl >= 2) drawFountainParts(cx + 16, cy - 11, 0.65);
+  if (lvl >= 3) {
+    ctx.fillStyle = "#ffd76e";  // gyngestativs-kugle
+    ctx.beginPath(); ctx.arc(cx - 26, cy + 10, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#888"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 26, cy + 10); ctx.lineTo(cx - 26, cy - 2); ctx.stroke();
+  }
 }
 function drawHospital(cx, cy, lvl) {
-  const h = 70 + lvl*14;
-  isoBox(cx, cy, 64, 46, h, "#f4f4f8");
-  windowsOn(cx - 26, cy - h + 12, Math.min(5, 3+lvl), 4, 8, 10, 12, 0.75);
-  // rødt kors
+  const h = 66 + lvl*14;
+  const b = isoBox(cx, cy, 64, 46, h, "#f4f4f8");
+  for (const [x0, cols] of [[cx-27, 3],[cx+4, 3]]) {
+    for (let f = 0; f < Math.floor(h/13) - 2; f++) {
+      winGrid(x0, cy - h + 10 + f*13, 1, cols, 8, 8, 10, 0, 0.8);
+    }
+  }
+  // rødt kryds på front + på tag
   ctx.fillStyle = "#e31b3c";
-  ctx.fillRect(cx - 3, cy - h - 18, 6, 16);
-  ctx.fillRect(cx - 8, cy - h - 13, 16, 6);
+  ctx.fillRect(cx - 2.5, cy - h - 16, 5, 14);
+  ctx.fillRect(cx - 8, cy - h - 10.5, 16, 5);
+  ctx.fillRect(cx - 10, b.tW[1] + 8, 20, 4);
+  // indkørsel-markering
+  ctx.fillStyle = "#e1e4ea";
+  ctx.fillRect(cx - 6, cy + 12, 12, 5);
 }
+function drawStadium(cx, cy, lvl) {
+  const s = 0.95 + lvl*0.1;
+  // tribune-ring (to lag)
+  ctx.fillStyle = "#9aa3ad";
+  ctx.beginPath(); ctx.ellipse(cx, cy, 48*s, 27*s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#7d858f";
+  ctx.beginPath(); ctx.ellipse(cx, cy, 42*s, 22*s, 0, 0, 7); ctx.fill();
+  // græs med striber
+  ctx.fillStyle = "#2f9d4f";
+  ctx.beginPath(); ctx.ellipse(cx, cy - 2, 36*s, 18*s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#38b25a";
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath(); ctx.ellipse(cx + i*8*s, cy - 2, 3.5*s, 18*s, 0, 0, 7); ctx.fill();
+  }
+  // løbebane
+  ctx.strokeStyle = "#c8452f"; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.ellipse(cx, cy - 2, 39*s, 20*s, 0, 0, 7); ctx.stroke();
+  // fyrtårn
+  for (const lx of [cx - 44*s, cx + 40*s]) {
+    ctx.strokeStyle = "#666"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(lx, cy - 4); ctx.lineTo(lx, cy - 26); ctx.stroke();
+    ctx.fillStyle = "#fffbe6";
+    ctx.beginPath(); ctx.moveTo(lx-5, cy-26); ctx.lineTo(lx+5, cy-26); ctx.lineTo(lx, cy-33); ctx.closePath(); ctx.fill();
+  }
+}
+
+/* ============ DEKORATION ============ */
 function drawTree(cx, cy, s = 1) {
-  ctx.fillStyle = "#6d4a2f"; ctx.fillRect(cx - 2*s, cy - 2*s, 4*s, 10*s);
-  ctx.fillStyle = "#2f8d3c"; ctx.beginPath(); ctx.arc(cx, cy - 12*s, 10*s, 0, 7); ctx.fill();
-  ctx.fillStyle = "#3fb84f"; ctx.beginPath(); ctx.arc(cx - 4*s, cy - 15*s, 6*s, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,.2)";
+  ctx.beginPath(); ctx.ellipse(cx+3*s, cy+2, 8*s, 3.5*s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#6d4a2f";
+  ctx.fillRect(cx - 2*s, cy - 3*s, 4*s, 8*s);
+  // tre lag løv med dybde
+  ctx.fillStyle = "#1f6d2c"; ctx.beginPath(); ctx.arc(cx, cy - 10*s, 9.5*s, 0, 7); ctx.fill();
+  ctx.fillStyle = "#2f8d3c"; ctx.beginPath(); ctx.arc(cx - 3.5*s, cy - 13*s, 7*s, 0, 7); ctx.fill();
+  ctx.fillStyle = "#48b857"; ctx.beginPath(); ctx.arc(cx - 5.5*s, cy - 15.5*s, 4.5*s, 0, 7); ctx.fill();
 }
 function drawFountainParts(cx, cy, s = 1) {
-  ctx.fillStyle = "#b9c2cc";
-  ctx.beginPath(); ctx.ellipse(cx, cy, 18*s, 9*s, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = "#3fd0ff"; ctx.beginPath(); ctx.ellipse(cx, cy, 14*s, 6*s, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = "#cfd6de"; ctx.fillRect(cx-2*s, cy - 14*s, 4*s, 14*s);
-  const ph = Date.now() / 400;
-  ctx.fillStyle = "rgba(120,220,255,.8)";
-  for (let i = 0; i < 5; i++) {
-    const a = ph*2 + i*1.26;
-    ctx.beginPath(); ctx.arc(cx + Math.cos(a)*10*s, cy - 10*s - Math.abs(Math.sin(a))*8*s, 1.6*s, 0, 7); ctx.fill();
+  // bassin i to niveauer
+  ctx.fillStyle = "#a9b2bc";
+  ctx.beginPath(); ctx.ellipse(cx, cy, 19*s, 9.5*s, 0, 0, 7); ctx.fill();
+  const wg = ctx.createLinearGradient(cx-14*s, cy-3, cx+14*s, cy+3);
+  wg.addColorStop(0, "#7fd8ff"); wg.addColorStop(1, "#2ba8e0");
+  ctx.fillStyle = wg;
+  ctx.beginPath(); ctx.ellipse(cx, cy, 14.5*s, 6.5*s, 0, 0, 7); ctx.fill();
+  // søjle + skål
+  ctx.fillStyle = "#cfd6de";
+  ctx.fillRect(cx-2.2*s, cy - 13*s, 4.4*s, 13*s);
+  ctx.fillStyle = "#dde3e9";
+  ctx.beginPath(); ctx.ellipse(cx, cy - 13*s, 8*s, 3.5*s, 0, 0, 7); ctx.fill();
+  // vand-animation: bue-stråler
+  const ph = Date.now() / 420;
+  ctx.strokeStyle = "rgba(140,225,255,.85)"; ctx.lineWidth = 1.4;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + ph * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 15*s);
+    ctx.quadraticCurveTo(cx + Math.cos(a)*9*s, cy - 20*s - Math.abs(Math.sin(ph*2+i))*4*s,
+                         cx + Math.cos(a)*13*s, cy - 13*s + Math.sin(a)*4*s);
+    ctx.stroke();
+  }
+  // dråber
+  ctx.fillStyle = "rgba(180,240,255,.9)";
+  for (let i = 0; i < 4; i++) {
+    const dp = (ph*2 + i*0.7) % 2;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(i*1.6+ph)*12*s, cy - 12*s + dp*9*s, 1.4*s, 0, 7); ctx.fill();
   }
 }
 function drawStatue(cx, cy, lvl) {
-  drawFountainParts(cx, cy + 6, 0.8);
-  ctx.fillStyle = "#8f97a3"; ctx.fillRect(cx-6, cy - 8, 12, 8);
+  drawFountainParts(cx, cy + 7, 0.75);
+  // sokkel
+  ctx.fillStyle = "#8f97a3";
+  ctx.beginPath(); ctx.moveTo(cx-8, cy-2); ctx.lineTo(cx+8, cy-2); ctx.lineTo(cx+6, cy-8); ctx.lineTo(cx-6, cy-8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#a9b2bc";
+  ctx.fillRect(cx-5, cy-14, 10, 6);
+  // person: krop + hoved + søgelys
+  ctx.fillStyle = "#c6cdd6";
+  ctx.beginPath(); ctx.arc(cx, cy - 18, 4.5, 0, 7); ctx.fill();
   ctx.fillStyle = "#b9c2cc";
-  ctx.beginPath(); ctx.arc(cx, cy - 14, 5, 0, 7); ctx.fill();
-  ctx.fillRect(cx - 2, cy - 12, 4, 8);
-  if (lvl >= 2) { ctx.fillStyle = "#ffd76e"; ctx.beginPath(); ctx.arc(cx, cy - 22, 3, 0, 7); ctx.fill(); }
+  ctx.beginPath(); ctx.moveTo(cx-4, cy-14); ctx.lineTo(cx+4, cy-14); ctx.lineTo(cx+2, cy-4); ctx.lineTo(cx-2, cy-4); ctx.closePath(); ctx.fill();
+  // arm med fakkel (lvl 2+)
+  if (lvl >= 2) {
+    ctx.strokeStyle = "#b9c2cc"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cx+3, cy-12); ctx.lineTo(cx+9, cy-20); ctx.stroke();
+    const fl = Date.now()/300;
+    ctx.fillStyle = `rgba(255,${180+Math.sin(fl)*40|0},80,.95)`;
+    ctx.beginPath(); ctx.arc(cx+9.5, cy-22, 2.5+Math.sin(fl*3)*0.7, 0, 7); ctx.fill();
+  }
 }
 function drawTower(cx, cy, lvl) {
-  const h = 120 + lvl*30;
-  isoBox(cx, cy, 40, 32, h, "#5d6b7d");
-  // top-platform + lys
+  const h = 115 + lvl*25;
+  const b = isoBox(cx, cy, 40, 32, h, "#5d6b7d");
+  // bjælker ( vandrette striber )
+  ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.lineWidth = 1;
+  for (let y = cy - 12; y > cy - h + 6; y -= 12) {
+    ctx.beginPath(); ctx.moveTo(cx-20, y); ctx.lineTo(cx, y-16); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y-16); ctx.lineTo(cx+20, y); ctx.stroke();
+  }
+  // top-platform med gelænder
   ctx.fillStyle = "#48566d";
-  ctx.beginPath(); ctx.moveTo(cx-26, cy-h-2); ctx.lineTo(cx+26, cy-h+12); ctx.lineTo(cx+26, cy-h+22); ctx.lineTo(cx-26, cy-h+8); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx-27, b.tW[1]-2); ctx.lineTo(cx, b.tN[1]-8);
+  ctx.lineTo(cx+27, b.tE[1]-2); ctx.lineTo(cx, b.tS[1]+8); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#aebbcc"; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(cx-27, b.tW[1]-2); ctx.lineTo(cx-27, b.tW[1]-9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+27, b.tE[1]-2); ctx.lineTo(cx+27, b.tE[1]-9); ctx.stroke();
+  // blinkende rødt lys
   const blink = (Date.now()/500|0) % 2 === 0;
-  ctx.fillStyle = blink ? "#ff5a5a" : "rgba(255,90,90,.25)";
-  ctx.beginPath(); ctx.arc(cx, cy - h - 8, 4, 0, 7); ctx.fill();
-}
-function drawStadium(cx, cy, lvl) {
-  const h = 34 + lvl*6;
-  // oval tribune
-  ctx.fillStyle = "#9aa3ad";
-  ctx.beginPath(); ctx.ellipse(cx, cy, 48, 28, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = "#2f9d4f";
-  ctx.beginPath(); ctx.ellipse(cx, cy - 4, 38, 20, 0, 0, 7); ctx.fill();
-  // løbebane
-  ctx.strokeStyle = "#c8452f"; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.ellipse(cx, cy - 2, 43, 24, 0, 0, 7); ctx.stroke();
-  // fyrtårn-lys
-  ctx.fillStyle = "#fffbe6";
-  ctx.fillRect(cx - 40, cy - 30, 4, 10); ctx.fillRect(cx + 36, cy - 30, 4, 10);
+  ctx.fillStyle = blink ? "#ff5a5a" : "rgba(255,90,90,.2)";
+  ctx.beginPath(); ctx.arc(cx, b.tN[1]-12, 3.5, 0, 7); ctx.fill();
+  if (blink) { ctx.shadowColor = "#ff5a5a"; ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0; }
 }
 
 /* Kort type → tegnefunktion */
