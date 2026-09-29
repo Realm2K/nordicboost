@@ -489,3 +489,89 @@ body::before {
   border: 2px solid var(--bg);
 }
 ::-webkit-scrollbar-thumb:hover { background: #2a3245; }
+
+/* =========================================================
+   GRAMMAR SIDE — бічне меню + контент
+   ========================================================= */
+.grammar-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+/* Бічне меню: липке, з власним скролом */
+.grammar-side__inner {
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+}
+.grammar-link {
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-size: .92rem;
+  font-weight: 600;
+  transition: all .15s ease;
+}
+.grammar-link:hover { color: var(--text); background: var(--bg-input); }
+.grammar-link--active {
+  color: var(--neon-green);
+  background: rgba(57,255,136,.08);
+  border-left: 3px solid var(--neon-green);
+  text-shadow: 0 0 8px rgba(57,255,136,.4);
+}
+
+/* Секції граматики */
+.grammar-section { margin-bottom: 18px; scroll-margin-top: 80px; }
+.grammar-section h2 {
+  font-size: 1.25rem;
+  margin-bottom: 10px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 10px rgba(53,230,255,.3);
+}
+.grammar-section p { margin-bottom: 10px; line-height: 1.6; }
+
+/* Таблиці прикладів */
+.gram-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: .95rem;
+}
+.gram-table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.gram-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(42,50,69,.5);
+}
+.gram-table tr:last-child td { border-bottom: none; }
+.gram-table tr:hover td { background: rgba(53,230,255,.04); }
+
+/* Мобільний: меню стає горизонтальною смугою зверху */
+@media (max-width: 800px) {
+  .grammar-layout { grid-template-columns: 1fr; }
+  .grammar-side__inner {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+    overflow-x: auto;
+  }
+  .grammar-link { white-space: nowrap; font-size: .85rem; padding: 7px 10px; }
+}

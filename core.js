@@ -225,7 +225,8 @@ const I18N = {
     "blast.nice": "💪 Влучно! Наступне слово…", "blast.miss": "❌ Мимо! Спробуй ще…",
     "common.lang": "Мова",
     "common.levelup": "🎉 НОВИЙ РІВЕНЬ!",
-    "common.xpgain": "XP"
+    "common.xpgain": "XP",
+    "gram.sub": "Уся центральна данська граматика в одному місці. Обери тему зліва.",
   },
   da: {
     "nav.home": "Hjem", "nav.cards": "Kort", "nav.quiz": "Quiz", "nav.blast": "Word Blast",
@@ -262,7 +263,8 @@ const I18N = {
     "blast.nice": "💪 Ramt! Næste ord…", "blast.miss": "❌ Forbi! Prøv igen…",
     "common.lang": "Sprog",
     "common.levelup": "🎉 NYT NIVEAU!",
-    "common.xpgain": "XP"
+    "common.xpgain": "XP",
+    "gram.sub": "Al den centrale danske grammatik samlet ét sted. Vælg et emne til venstre.",
   }
 };
 
