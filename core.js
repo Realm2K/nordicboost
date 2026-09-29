@@ -207,7 +207,7 @@ if ("speechSynthesis" in window) {
    ========================================================= */
 const I18N = {
   uk: {
-    "nav.home": "Головна", "nav.cards": "Картки", "nav.quiz": "Квіз", "nav.blast": "Word Blast",
+    "nav.home": "Головна", "nav.cards": "Картки", "nav.quiz": "Квіз", "nav.blast": "Word Blast", "nav.stats": "Прогрес",
     "dash.hello": "Привіт", "dash.ready": "Готовий вивчати данську сьогодні? Обери режим нижче.",
     "dash.level": "Рівень", "dash.xp": "Всього XP", "dash.learned": "Вивчено слів",
     "dash.nextlevel": "До наступного рівня", "dash.wordsdb": "Слова з бази",
@@ -249,9 +249,14 @@ const I18N = {
     "match.over": "⏰ Час вийшов!", "match.clear": "🎉 Рівень пройдено!",
     "match.next": "Далі →", "match.again": "🔄 Ще раз",
     "match.pairs_left": "Пар залишилось: ", "pack.all": "Усі слова", "pack.choose": "Ord Pakke:",
+    "stats.title": "📊 Мій прогрес", "stats.sub": "Скільки слів вивчено з кожної категорії — і де варто практикуватися більше.",
+    "stats.pack": "Категорія", "stats.learned": "Вивчено", "stats.total": "Усього", "stats.bar": "Прогрес",
+    "stats.hint": "💡 Практикуй категорії з низьким прогресом — обери їх у виборі пакета на сторінках ігор!",
+    "stats.zero": "Почни з цієї категорії!", "stats.full": "✅ Готово!",
+    "stats.need_work": "Потребує практики",
   },
   da: {
-    "nav.home": "Hjem", "nav.cards": "Kort", "nav.quiz": "Quiz", "nav.blast": "Word Blast",
+    "nav.home": "Hjem", "nav.cards": "Kort", "nav.quiz": "Quiz", "nav.blast": "Word Blast", "nav.stats": "Fremdrift",
     "dash.hello": "Hej", "dash.ready": "Klar til at lære dansk i dag? Vælg en tilstand nedenfor.",
     "dash.level": "Niveau", "dash.xp": "Samlet XP", "dash.learned": "Lærte ord",
     "dash.nextlevel": "Til næste niveau", "dash.wordsdb": "Ord fra databasen",
@@ -289,6 +294,11 @@ const I18N = {
     "match.over": "⏰ Tiden er gået!", "match.clear": "🎉 Niveau klaret!",
     "match.next": "Videre →", "match.again": "🔄 Igen",
     "match.pairs_left": "Par tilbage: ", "pack.all": "Alle ord", "pack.choose": "Ord Pakke:",
+    "stats.title": "📊 Min fremdrift", "stats.sub": "Hvor mange ord der er lært i hver kategori — og hvor du bør øve mere.",
+    "stats.pack": "Kategori", "stats.learned": "Lært", "stats.total": "I alt", "stats.bar": "Fremdrift",
+    "stats.hint": "💡 Øv kategorierne med lav fremdrift — vælg dem i pakke-vælgeren på spilsiderne!",
+    "stats.zero": "Start med denne kategori!", "stats.full": "✅ Færdig!",
+    "stats.need_work": "Trænger til øvelse",
     "common.lang": "Sprog",
     "common.levelup": "🎉 NYT NIVEAU!",
     "common.xpgain": "XP",

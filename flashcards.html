@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Картки</title>
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -16,6 +16,7 @@
     <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
     <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
     <a href="match.html" data-i18n="nav.match">Match</a>
+    <a href="stats.html" data-i18n="nav.stats">Прогрес</a>
     <a href="grammar.html" data-i18n="nav.grammar">Граматика</a>
     <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
   </div>
@@ -78,8 +79,8 @@
   </div>
 </div>
 
-<script src="data.js?v=7"></script>
-<script src="core.js?v=7"></script>
+<script src="data.js?v=8"></script>
+<script src="core.js?v=8"></script>
 <script>
 let deck = [];        // поточна колода
 let index = 0;        // індекс поточної картки
@@ -145,19 +146,17 @@ document.getElementById("btnSpeak").addEventListener("click", e => {
 */
 function rate(knew) {
   const w = deck[index];
-  const flipped = document.getElementById("flashcard").classList.contains("flipped");
-  if (!flipped) {
-    // Підказка: спершу подивись переклад, потім оцінюй
-    document.getElementById("ratingHint").textContent = t("fc.need_flip");
-    return;
-  }
   if (rated) return;   // вже оцінили цю картку
   rated = true;
 
+  // Якщо картка ще не перевернута — перевертаємо автоматично,
+  // щоб Nazar побачив переклад. Оцінка зберігається одразу.
+  const card = document.getElementById("flashcard");
+  if (!card.classList.contains("flipped")) card.classList.add("flipped");
+
   rateSmartCard(w.id, knew);
 
-  // Невелика анімація «відлету» картки
-  const card = document.getElementById("flashcard");
+  // Невелика анімація «відльоту» картки
   card.style.transition = "transform .3s ease, opacity .3s ease";
   card.style.transform = knew ? "translateX(60px) rotate(6deg)" : "translateX(-60px) rotate(-6deg)";
   card.style.opacity = "0";

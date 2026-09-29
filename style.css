@@ -633,3 +633,35 @@ body::before {
   .match-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
   .match-tile { min-height: 64px; font-size: .85rem; padding: 12px 8px; }
 }
+
+/* ===== Сторінка прогресу (stats.html) ===== */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.5fr 1.3fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,.08));
+}
+.stats-row--head {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  opacity: .6;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,.15));
+}
+.stats-row:last-child { border-bottom: none; }
+.stats-row__name { font-weight: 600; }
+.stats-row__count { font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap; }
+.stats-row__bar { display: flex; align-items: center; gap: 10px; }
+.stats-row__bar .progress { flex: 1; }
+.stats-row__bar .pill { flex-shrink: 0; }
+
+.pill--ok   { background: rgba(57,255,136,.15);  color: #39ff88; border: 1px solid rgba(57,255,136,.4); }
+.pill--warn { background: rgba(255,77,109,.12);  color: #ff9db1; border: 1px solid rgba(255,77,109,.4); }
+
+@media (max-width: 640px) {
+  .stats-row { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+  .stats-row--head { display: none; }
+  .stats-row__bar { grid-column: 1 / -1; }
+}

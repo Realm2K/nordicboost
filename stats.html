@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NordicBoost — Мій прогрес</title>
+  <link rel="stylesheet" href="style.css?v=8">
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__brand">⚡ NORDICBOOST</span>
+  <div class="nav__links">
+    <a href="index.html" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
+    <a href="match.html" data-i18n="nav.match">Match</a>
+    <a href="stats.html" class="active" data-i18n="nav.stats">Прогрес</a>
+    <a href="grammar.html" data-i18n="nav.grammar">Граматика</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
+  </div>
+</nav>
+
+<main class="container">
+  <h1 class="page-title" data-i18n="stats.title">📊 Мій прогрес</h1>
+  <p class="page-sub" data-i18n="stats.sub">Скільки слів вивчено з кожної категорії — і де варто практикуватися більше.</p>
+
+  <!-- Загальний підсумок -->
+  <div class="stat-grid mb-2">
+    <div class="stat">
+      <div class="stat__value" id="statLevel">1</div>
+      <div class="stat__label" data-i18n="dash.level">Рівень</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value" id="statXP">0</div>
+      <div class="stat__label" data-i18n="dash.xp">Всього XP</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value" id="statLearned">0</div>
+      <div class="stat__label" data-i18n="dash.learned">Вивчено слів</div>
+    </div>
+  </div>
+
+  <!-- Таблиця прогресу по категоріях -->
+  <div class="card mb-2" id="statsTable"></div>
+
+  <p class="center muted" data-i18n="stats.hint">💡 Практикуй категорії з низьким прогресом — обери їх у виборі пакета на сторінках ігор!</p>
+</main>
+
+<script src="data.js?v=8"></script>
+<script src="core.js?v=8"></script>
+<script>
+const t = key => I18N[getLang()][key];
+
+function renderStats() {
+  document.getElementById("statLevel").textContent = getLevel();
+  document.getElementById("statXP").textContent = loadProgress().totalXP;
+  const learnedTotal = getLearnedCount();
+  document.getElementById("statLearned").textContent = learnedTotal + " / " + TOTAL_WORDS;
+
+  const lang = getLang();
+  const rows = PACKS.map(p => {
+    const words = WORDS.filter(w => w.pack === p.id);
+    const learned = words.filter(w => isLearned(w.id)).length;
+    return { ...p, learned, total: words.length, pct: words.length ? learned / words.length : 0 };
+  });
+
+  // Сортування: найменший прогрес — зверху (де найбільше "дірок")
+  rows.sort((a, b) => a.pct - b.pct || b.total - a.total);
+
+  let html = '<div class="stats-row stats-row--head">';
+  html += '<span>' + t("stats.pack") + '</span>';
+  html += '<span>' + t("stats.learned") + '</span>';
+  html += '<span>' + t("stats.bar") + '</span>';
+  html += '</div>';
+
+  rows.forEach(r => {
+    const name = lang === "da" ? r.da : r.uk;
+    const pct = Math.round(r.pct * 100);
+    let badge = "";
+    if (r.pct === 1)       badge = '<span class="pill pill--ok">' + t("stats.full") + '</span>';
+    else if (r.pct === 0)  badge = '<span class="pill pill--warn">' + t("stats.zero") + '</span>';
+    else if (r.pct < 0.4)  badge = '<span class="pill pill--warn">' + t("stats.need_work") + '</span>';
+
+    html += '<div class="stats-row">';
+    html += '<span class="stats-row__name">' + name + '</span>';
+    html += '<span class="stats-row__count">' + r.learned + ' / ' + r.total + '</span>';
+    html += '<div class="stats-row__bar">';
+    html += '<div class="progress"><div class="progress__fill' + (r.pct === 1 ? "" : " progress__fill--pink") + '" style="width:' + pct + '%"></div></div>';
+    html += badge;
+    html += '</div>';
+    html += '</div>';
+  });
+
+  document.getElementById("statsTable").innerHTML = html;
+}
+
+applyI18n();
+renderStats();
+</script>
+</body>
+</html>
