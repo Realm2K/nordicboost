@@ -114,20 +114,60 @@ function resetProgress() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-/* Датський голосовий синтез (Web Speech API).
-   Використовується на flashcards та у квізі. */
+/* =========================================================
+   ДАТСЬКЕ ОЗВУЧЕННЯ (Web Speech API) — виправлена версія
+   =========================================================
+   Проблема раніше: браузер міг читати данський текст англійською
+   (або будь-якою «за замовчуванням») голосом, тому вимова була
+   зовсім неправильною.
+
+   Виправлення:
+   1) Строго шукаємо голос із мовою "da" (da-DK / da-DK...).
+   2) Якщо голоси ще не завантажились — чекаємо подію voiceschanged
+      і лише тоді відтворюємо.
+   3) Явно вказуємо u.lang = "da-DK", навіть якщо голос не знайдено
+      (деколи браузер сам підбирає правильну вимову за lang).
+   4) Сповіщаємо, якщо датського голосу нема в системі.
+   ========================================================= */
+
+/* Повертає найкращий доступний данський голос (або null) */
+function findDanishVoice() {
+  const voices = speechSynthesis.getVoices();
+  // Пріоритет: голос, чия мова ПОЧИНАЄТЬСЯ з "da" (da-DK, da)
+  const danish = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("da"));
+  if (danish.length) {
+    // Надаємо перевагу Google-голосу, якщо є (зазвичай найякісніший)
+    const google = danish.find(v => v.name.includes("Google"));
+    return google || danish[0];
+  }
+  return null;
+}
+
+/* Датський голосовий синтез. Використовується на flashcards. */
 function speakDanish(text) {
   if (!("speechSynthesis" in window)) {
     alert("Вибач, твій браузер не підтримує озвучення :(");
     return;
   }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "da-DK";      // датська мова
-  u.rate = 0.85;         // трохи повільніше, щоб легше сприймати
-  const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith("da"));
-  if (voices.length) u.voice = voices[0];
+
   speechSynthesis.cancel(); // зупиняємо попереднє озвучення
-  speechSynthesis.speak(u);
+
+  const attempt = () => {
+    const voice = findDanishVoice();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "da-DK";     // навіть без голосу — підкаже браузеру мову
+    u.rate = 0.9;         // трохи повільніше, щоб легше сприймати
+    if (voice) u.voice = voice;
+    speechSynthesis.speak(u);
+  };
+
+  // Якщо список голосів ще порожній (Chrome завантажує їх асинхронно) —
+  // чекаємо подію voiceschanged і лише тоді говоримо.
+  if (speechSynthesis.getVoices().length === 0) {
+    speechSynthesis.addEventListener("voiceschanged", attempt, { once: true });
+  } else {
+    attempt();
+  }
 }
 
 // Деякі браузери завантажують голоси асинхронно — прогріваємо список.
