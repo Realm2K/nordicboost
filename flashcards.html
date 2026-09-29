@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NordicBoost — Картки</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__brand">⚡ NORDICBOOST</span>
+  <div class="nav__links">
+    <a href="index.html">Головна</a>
+    <a href="flashcards.html" class="active">Картки</a>
+    <a href="quiz.html">Квіз</a>
+    <a href="blast.html">Word Blast</a>
+  </div>
+</nav>
+
+<main class="container">
+  <h1 class="page-title">🃏 Картки для вивчення</h1>
+  <p class="page-sub">Тапни на картку, щоб перевернути. Датська → Українська.</p>
+
+  <!-- Фільтр: усі слова / тільки невивчені -->
+  <div class="flash-controls">
+    <label class="muted">Фільтр:</label>
+    <select id="filterSelect" class="btn btn--ghost btn--small" style="color:var(--text)">
+      <option value="all">Усі слова</option>
+      <option value="unlearned">Тільки невивчені</option>
+    </select>
+    <button class="btn btn--ghost btn--small" id="btnShuffle">🔀 Перемішати</button>
+  </div>
+
+  <!-- Картка -->
+  <div class="flashcard" id="flashcard">
+    <div class="flashcard__inner">
+      <div class="flashcard__face flashcard__face--front">
+        <div class="flashcard__word" id="cardFront">—</div>
+        <button class="btn btn--small" id="btnSpeak">🔊 Озвучити</button>
+        <div class="flashcard__hint">Тапни, щоб побачити переклад</div>
+      </div>
+      <div class="flashcard__face flashcard__face--back">
+        <div class="flashcard__word" id="cardBack">—</div>
+        <div class="flashcard__mastery" id="cardMastery"></div>
+        <div class="flashcard__hint">Тапни, щоб повернутись</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Навігація між картками -->
+  <div class="flash-controls">
+    <button class="btn btn--ghost" id="btnPrev">← Попередня</button>
+    <span class="muted" id="cardCounter" style="align-self:center">1 / 1</span>
+    <button class="btn" id="btnNext">Наступна →</button>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script>
+let deck = [];      // поточна колода (можливо відфільтрована)
+let index = 0;      // індекс поточної картки
+
+/* Створює колоду залежно від фільтра */
+function buildDeck() {
+  const mode = document.getElementById("filterSelect").value;
+  deck = WORDS.filter(w => mode === "unlearned" ? !isLearned(w.id) : true);
+  if (deck.length === 0) {
+    alert("🎉 Усі слова вивчені! Спробуй режим «Усі слова», щоб повторити.");
+    document.getElementById("filterSelect").value = "all";
+    deck = [...WORDS];
+  }
+  index = 0;
+  renderCard();
+}
+
+/* Малює картку № index */
+function renderCard() {
+  const card = document.getElementById("flashcard");
+  card.classList.remove("flipped");   // завжди починаємо з датської сторони
+  const w = deck[index];
+  document.getElementById("cardFront").textContent = w.da;
+  document.getElementById("cardBack").textContent  = w.uk;
+  const m = getMastery(w.id);
+  document.getElementById("cardMastery").textContent =
+    isLearned(w.id) ? "✅ Вивчено (" + m + "/" + CONFIG.MASTERY_TO_LEARN + ")"
+                    : "Прогрес: " + m + "/" + CONFIG.MASTERY_TO_LEARN + " правильних";
+  document.getElementById("cardCounter").textContent = (index + 1) + " / " + deck.length;
+}
+
+document.getElementById("flashcard").addEventListener("click", () =>
+  document.getElementById("flashcard").classList.toggle("flipped"));
+
+document.getElementById("btnSpeak").addEventListener("click", e => {
+  e.stopPropagation();                 // не перевертаємо картку при кліку на кнопку
+  speakDanish(deck[index].da);         // Web Speech API (датська)
+});
+
+document.getElementById("btnNext").addEventListener("click", () => {
+  index = (index + 1) % deck.length;
+  renderCard();
+});
+document.getElementById("btnPrev").addEventListener("click", () => {
+  index = (index - 1 + deck.length) % deck.length;
+  renderCard();
+});
+document.getElementById("btnShuffle").addEventListener("click", () => {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  index = 0;
+  renderCard();
+});
+document.getElementById("filterSelect").addEventListener("change", buildDeck);
+
+buildDeck();
+</script>
+</body>
+</html>

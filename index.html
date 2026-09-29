@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NordicBoost — Головна</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__brand">⚡ NORDICBOOST</span>
+  <div class="nav__links">
+    <a href="index.html" class="active">Головна</a>
+    <a href="flashcards.html">Картки</a>
+    <a href="quiz.html">Квіз</a>
+    <a href="blast.html">Word Blast</a>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- Привітання -->
+  <h1 class="page-title">Привіт, <span style="color:var(--neon-green); text-shadow:0 0 12px rgba(57,255,136,.6)">Nazar</span>! 👋</h1>
+  <p class="page-sub">Готовий вивчати данську сьогодні? Обери режим нижче.</p>
+
+  <!-- Статистика: рівень, XP, вивчені слова -->
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat__value" id="statLevel">1</div>
+      <div class="stat__label">Рівень</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value" id="statXP">0</div>
+      <div class="stat__label">Всього XP</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value" id="statLearned">0</div>
+      <div class="stat__label">Вивчено слів</div>
+    </div>
+  </div>
+
+  <!-- Прогрес-бар рівня -->
+  <div class="card mb-2">
+    <strong>До наступного рівня</strong>
+    <div class="progress"><div class="progress__fill" id="xpBar"></div></div>
+    <span class="progress-text" id="xpBarText">0 / 100 XP</span>
+  </div>
+
+  <!-- Прогрес-бар вивчених слів -->
+  <div class="card mb-2">
+    <strong>Слова з бази</strong>
+    <div class="progress"><div class="progress__fill progress__fill--pink" id="wordsBar"></div></div>
+    <span class="progress-text" id="wordsBarText">Вивчено слів: 0 / 0</span>
+  </div>
+
+  <!-- Навігація до режимів -->
+  <div class="stat-grid">
+    <a class="card center" href="flashcards.html" style="display:block">
+      <div style="font-size:2rem">🃏</div>
+      <strong>Картки</strong>
+      <p class="muted">Вивчай слова — тапни, щоб перевернути</p>
+    </a>
+    <a class="card center" href="quiz.html" style="display:block">
+      <div style="font-size:2rem">🧠</div>
+      <strong>Квіз</strong>
+      <p class="muted">Тест з вибором відповіді + XP</p>
+    </a>
+    <a class="card center" href="blast.html" style="display:block">
+      <div style="font-size:2rem">🚀</div>
+      <strong>Word Blast</strong>
+      <p class="muted">Арканоїд зі словами: друкуй, поки не впало!</p>
+    </a>
+  </div>
+
+  <!-- Небезпечно: скидання прогресу -->
+  <div class="center mt-2">
+    <button class="btn btn--ghost btn--small" id="btnReset">Скинути прогрес</button>
+  </div>
+
+</main>
+
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script>
+/* Оновлює всі числа/бари на дашборді на основі localStorage */
+function refreshDashboard() {
+  document.getElementById("statLevel").textContent   = getLevel();
+  document.getElementById("statXP").textContent      = loadProgress().totalXP;
+  document.getElementById("statLearned").textContent = getLearnedCount();
+
+  // XP-бар
+  const xpInLevel = getLevelProgress();
+  document.getElementById("xpBar").style.width = (xpInLevel / CONFIG.XP_PER_LEVEL * 100) + "%";
+  document.getElementById("xpBarText").textContent = xpInLevel + " / " + CONFIG.XP_PER_LEVEL + " XP";
+
+  // Бар слів
+  const learned = getLearnedCount();
+  document.getElementById("wordsBar").style.width = (learned / TOTAL_WORDS * 100) + "%";
+  document.getElementById("wordsBarText").textContent = "Вивчено слів: " + learned + " / " + TOTAL_WORDS;
+}
+
+document.getElementById("btnReset").addEventListener("click", () => {
+  if (confirm("Точно скинути весь прогрес? Це видалить XP і вивчені слова!")) {
+    resetProgress();
+    refreshDashboard();
+  }
+});
+
+// Оновлюємо числа при завантаженні сторінки
+refreshDashboard();
+</script>
+</body>
+</html>
