@@ -248,7 +248,7 @@ const I18N = {
     "match.start": "▶ Почати", "match.newbest": "🏆 НОВИЙ РЕКОРД!",
     "match.over": "⏰ Час вийшов!", "match.clear": "🎉 Рівень пройдено!",
     "match.next": "Далі →", "match.again": "🔄 Ще раз",
-    "match.pairs_left": "Пар залишилось: ",
+    "match.pairs_left": "Пар залишилось: ", "pack.all": "Усі слова", "pack.choose": "Ord Pakke:",
   },
   da: {
     "nav.home": "Hjem", "nav.cards": "Kort", "nav.quiz": "Quiz", "nav.blast": "Word Blast",
@@ -288,7 +288,7 @@ const I18N = {
     "match.start": "▶ Start", "match.newbest": "🏆 NY REKORD!",
     "match.over": "⏰ Tiden er gået!", "match.clear": "🎉 Niveau klaret!",
     "match.next": "Videre →", "match.again": "🔄 Igen",
-    "match.pairs_left": "Par tilbage: ",
+    "match.pairs_left": "Par tilbage: ", "pack.all": "Alle ord", "pack.choose": "Ord Pakke:",
     "common.lang": "Sprog",
     "common.levelup": "🎉 NYT NIVEAU!",
     "common.xpgain": "XP",
@@ -453,4 +453,65 @@ function saveMatchHighScore(score) {
     }
     return false;
   } catch (e) { return false; }
+}
+
+/* =========================================================
+   ВИБІР ПАКА СЛІВ (ORDPAKKER)
+   =========================================================
+   Користувач обирає пакет перед грою/вивченням.
+   Вибір зберігається у localStorage, тому наступного разу
+   відкривається останній обраний пакет.
+   "all" = усі слова (усі паки).
+   ========================================================= */
+const PACK_KEY = "nordicboost_pack";
+
+/* Поточний обраний пакет (за замовчуванням "all") */
+function getSelectedPack() {
+  try {
+    return localStorage.getItem(PACK_KEY) || "all";
+  } catch (e) { return "all"; }
+}
+
+/* Зберігає вибір пака */
+function setSelectedPack(packId) {
+  try { localStorage.setItem(PACK_KEY, packId); } catch (e) {}
+}
+
+/*
+  Будуємо <select> з паками для сторінки.
+  Елементselect#id має існувати у HTML.
+  При зміні — зберігаємо і перезавантажуємо сторінку,
+  щоб гра/картки перебудувалися на нових словах.
+*/
+function buildPackSelector(selectElId, onChange) {
+  const sel = document.getElementById(selectElId);
+  if (!sel) return;
+  const current = getSelectedPack();
+  sel.innerHTML = "";
+
+  // Опція «Усі паки»
+  const optAll = document.createElement("option");
+  optAll.value = "all";
+  optAll.textContent = "📚 " + I18N[getLang()]["pack.all"] + " (" + TOTAL_WORDS + ")";
+  sel.appendChild(optAll);
+
+  // Опції кожного пака
+  PACKS.forEach(p => {
+    const o = document.createElement("option");
+    o.value = p.id;
+    o.textContent = (getLang() === "da" ? p.da : p.uk) + " (" + p.count + ")";
+    sel.appendChild(o);
+  });
+
+  sel.value = current;
+  sel.addEventListener("change", () => {
+    setSelectedPack(sel.value);
+    if (onChange) onChange(sel.value);
+  });
+}
+
+/* Слова обраного пака ("all" → усі) */
+function getPackWords() {
+  const p = getSelectedPack();
+  return (p === "all") ? WORDS : WORDS.filter(w => w.pack === p);
 }

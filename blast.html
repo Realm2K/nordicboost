@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Word Blast</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -38,6 +38,12 @@
 
   <input id="blastInput" type="text" data-i18n-ph="blast.input_ph" placeholder="Введи переклад і натисни Enter…" autocomplete="off" autofocus>
 
+  <!-- Вибір пака -->
+  <div class="flash-controls" style="justify-content:flex-start">
+    <label class="muted" data-i18n="pack.choose">Ord Pakke:</label>
+    <select id="packSelect" class="btn btn--ghost btn--small" style="color:var(--text)"></select>
+  </div>
+
   <div class="center mt-2">
     <button class="btn" id="btnStart" data-i18n="blast.start">▶ Почати гру</button>
   </div>
@@ -53,8 +59,8 @@
   </div>
 </div>
 
-<script src="data.js?v=6"></script>
-<script src="core.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="core.js?v=7"></script>
 <script>
 const canvas = document.getElementById("blastCanvas");
 const ctx = canvas.getContext("2d");
@@ -122,7 +128,8 @@ function spawnExplosion(x, y) {
 }
 
 function spawnWord() {
-  const w = WORDS[Math.floor(Math.random() * WORDS.length)];
+  const pool = getPackWords();   // слова з обраного пака
+  const w = pool[Math.floor(Math.random() * pool.length)];
   words.push(new FallingWord(w));
 }
 
@@ -238,6 +245,7 @@ document.getElementById("btnStart").addEventListener("click", () => {
 });
 
 applyI18n();
+buildPackSelector("packSelect", () => location.reload());
 resizeCanvas();
 </script>
 </body>

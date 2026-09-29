@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Match</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -33,6 +33,12 @@
     <span class="pill" style="color:var(--neon-yellow)">🏆 <span data-i18n="match.best">Рекорд</span>: <span id="mBest">0</span></span>
   </div>
 
+  <!-- Вибір пака -->
+  <div class="flash-controls" style="justify-content:flex-start">
+    <label class="muted" data-i18n="pack.choose">Ord Pakke:</label>
+    <select id="packSelect" class="btn btn--ghost btn--small" style="color:var(--text)"></select>
+  </div>
+
   <!-- Поле гри -->
   <div id="matchGrid" class="match-grid"></div>
 
@@ -54,8 +60,8 @@
   </div>
 </div>
 
-<script src="data.js?v=6"></script>
-<script src="core.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="core.js?v=7"></script>
 <script>
 /* =========================================================
    MATCH — гра на пошук пар (dansk ↔ ukrainsk)
@@ -100,10 +106,10 @@ function buildBoard() {
   flipped = [];
   locked = false;
 
-  // Випадкові слова
-  const pool = [...WORDS];
+  // Випадкові слова з обраного ПАКА
+  const pool = [...getPackWords()];
   const chosen = [];
-  while (chosen.length < pairCount) {
+  while (chosen.length < pairCount && pool.length > 0) {
     chosen.push(pool.splice(rnd(pool.length), 1)[0]);
   }
 
@@ -258,6 +264,7 @@ document.getElementById("btnStart").addEventListener("click", () => {
 });
 
 applyI18n();
+buildPackSelector("packSelect", () => location.reload());
 updateHUD();
 </script>
 </body>

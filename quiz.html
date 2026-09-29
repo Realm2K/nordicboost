@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Квіз</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -25,6 +25,12 @@
   <h1 class="page-title">🧠 <span data-i18n="nav.quiz">Квіз</span></h1>
   <p class="page-sub"><span data-i18n="quiz.sub">Обери правильний данський переклад. За кожну правильну відповідь — </span><span style="color:var(--neon-green)">+<span id="xpPreview">10</span> XP</span>!</p>
 
+  <!-- Вибір пака -->
+  <div class="flash-controls" style="justify-content:flex-start">
+    <label class="muted" data-i18n="pack.choose">Ord Pakke:</label>
+    <select id="packSelect" class="btn btn--ghost btn--small" style="color:var(--text)"></select>
+  </div>
+
   <div class="card">
     <h2 id="questionWord" class="question-word">—</h2>
     <p class="muted" data-i18n="quiz.pick">Обери данський переклад:</p>
@@ -42,8 +48,8 @@
   </div>
 </main>
 
-<script src="data.js?v=6"></script>
-<script src="core.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="core.js?v=7"></script>
 <script>
 let currentWord = null;
 let sessionXP = 0;
@@ -51,19 +57,21 @@ let streak = 0;
 
 const OPTION_COUNT = 4;    // скільки варіантів відповіді (легко змінити)
 const t = key => I18N[getLang()][key];
+const POOL = () => getPackWords();   // слова з обраного пака
 
-/* Питання = випадкове слово; правильна відповідь + «приманки» */
+/* Питання = випадкове слово з ПАКА; правильна відповідь + «приманки» */
 function nextQuestion() {
   document.getElementById("feedback").textContent = "";
   document.getElementById("feedback").className = "quiz-feedback";
   document.getElementById("btnNext").style.display = "none";
   document.getElementById("xpPreview").textContent = CONFIG.XP_PER_CORRECT;
 
-  currentWord = WORDS[Math.floor(Math.random() * WORDS.length)];
+  const pool = POOL();
+  currentWord = pool[Math.floor(Math.random() * pool.length)];
 
   const distractors = [];
   while (distractors.length < OPTION_COUNT - 1) {
-    const w = WORDS[Math.floor(Math.random() * WORDS.length)];
+    const w = pool[Math.floor(Math.random() * pool.length)];
     if (w.id !== currentWord.id && !distractors.find(d => d.id === w.id)) distractors.push(w);
   }
 
@@ -131,6 +139,7 @@ function checkAnswer(button, opt) {
 document.getElementById("btnNext").addEventListener("click", nextQuestion);
 
 applyI18n();
+buildPackSelector("packSelect", () => location.reload());
 nextQuestion();
 </script>
 </body>

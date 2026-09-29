@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NordicBoost — Картки</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -25,7 +25,11 @@
   <h1 class="page-title">🃏 <span data-i18n="nav.cards">Картки</span></h1>
   <p class="page-sub" data-i18n="fc.sub">Тапни картку, щоб перевернути. Оціни себе чесно — система запам'ятає!</p>
 
-  <!-- Фільтри режиму -->
+  <!-- Вибір пака слів + фільтри режиму -->
+  <div class="flash-controls">
+    <label class="muted" data-i18n="pack.choose">Ord Pakke:</label>
+    <select id="packSelect" class="btn btn--ghost btn--small" style="color:var(--text)"></select>
+  </div>
   <div class="flash-controls">
     <label class="muted" data-i18n="fc.filter">Фільтр:</label>
     <select id="filterSelect" class="btn btn--ghost btn--small" style="color:var(--text)">
@@ -74,8 +78,8 @@
   </div>
 </div>
 
-<script src="data.js?v=6"></script>
-<script src="core.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="core.js?v=7"></script>
 <script>
 let deck = [];        // поточна колода
 let index = 0;        // індекс поточної картки
@@ -83,22 +87,22 @@ let rated = false;    // чи оцінив себе на ЦІЙ картці (щ
 
 const t = key => I18N[getLang()][key];   // коротший доступ до перекладів
 
-/* Створює колоду залежно від фільтра */
+/* Створює колоду залежно від фільтра (слова — з обраного пака) */
 function buildDeck() {
   const mode = document.getElementById("filterSelect").value;
+  const PACK = getPackWords();   // слова обраного пака
   if (mode === "unlearned") {
-    deck = WORDS.filter(w => !isLearned(w.id));
+    deck = PACK.filter(w => !isLearned(w.id));
     if (deck.length === 0) {
       showToast("🎉 " + t("dash.learnedwords") + " " + TOTAL_WORDS + " / " + TOTAL_WORDS + "!");
       document.getElementById("filterSelect").value = "smart";
       return buildDeck();
     }
   } else if (mode === "all") {
-    deck = [...WORDS];
+    deck = [...PACK];
   } else {
     // 🎯 РОЗУМНИЙ РЕЖИМ: слова сортуються системою Лейтнера.
-    // Ті, що позначені «Не знаю» (ящик 1), завжди показуються першими.
-    deck = smartOrder(WORDS);
+    deck = smartOrder(PACK);
   }
   index = 0;
   renderCard();
@@ -203,6 +207,7 @@ document.getElementById("filterSelect").addEventListener("change", buildDeck);
 
 // Ініціалізація
 applyI18n();
+buildPackSelector("packSelect", () => location.reload());   // зміна пака → перезавантаження
 buildDeck();
 </script>
 </body>
