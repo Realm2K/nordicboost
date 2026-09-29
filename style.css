@@ -575,3 +575,61 @@ body::before {
   }
   .grammar-link { white-space: nowrap; font-size: .85rem; padding: 7px 10px; }
 }
+
+/* =========================================================
+   MATCH — сітка плиток
+   ========================================================= */
+.match-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+  min-height: 200px;
+}
+.match-tile {
+  padding: 18px 12px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s ease;
+  min-height: 76px;
+  text-align: center;
+}
+.match-tile:hover:not(.matched) {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 12px rgba(53,230,255,.3);
+  transform: translateY(-2px);
+}
+.match-tile.selected {
+  border-color: var(--neon-green);
+  background: rgba(57,255,136,.10);
+  box-shadow: 0 0 16px rgba(57,255,136,.4);
+}
+.match-tile.wrong {
+  animation: tileShake .4s ease;
+  border-color: var(--danger);
+  background: rgba(255,71,87,.12);
+}
+.match-tile.matched {
+  border-color: rgba(57,255,136,.35);
+  background: rgba(57,255,136,.05);
+  color: var(--text-dim);
+  opacity: .35;
+  pointer-events: none;
+  transform: scale(.92);
+  transition: all .3s ease;
+}
+@keyframes tileShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+@media (max-width: 600px) {
+  .match-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .match-tile { min-height: 64px; font-size: .85rem; padding: 12px 8px; }
+}

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NordicBoost — Match</title>
+  <link rel="stylesheet" href="style.css?v=6">
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__brand">⚡ NORDICBOOST</span>
+  <div class="nav__links">
+    <a href="index.html" data-i18n="nav.home">Головна</a>
+    <a href="flashcards.html" data-i18n="nav.cards">Картки</a>
+    <a href="quiz.html" data-i18n="nav.quiz">Квіз</a>
+    <a href="blast.html" data-i18n="nav.blast">Word Blast</a>
+    <a href="match.html" class="active" data-i18n="nav.match">Match</a>
+    <a href="grammar.html" data-i18n="nav.grammar">Граматика</a>
+    <button class="btn btn--ghost btn--small" data-lang-toggle onclick="toggleLang()">🇩🇰 DA</button>
+  </div>
+</nav>
+
+<main class="container">
+  <h1 class="page-title" data-i18n="match.title">🧩 Match</h1>
+  <p class="page-sub" data-i18n="match.sub">Знайди пари: данське слово + український переклад — до кінця часу!</p>
+
+  <!-- HUD -->
+  <div class="blast-hud">
+    <span class="pill">🎯 <span data-i18n="match.level">Рівень</span>: <span id="mLevel">1</span></span>
+    <span class="pill">💥 <span data-i18n="match.score">Рахунок</span>: <span id="mScore">0</span></span>
+    <span class="pill">⏱️ <span data-i18n="match.time">Час</span>: <span id="mTime">—</span></span>
+    <span class="pill" style="color:var(--neon-yellow)">🏆 <span data-i18n="match.best">Рекорд</span>: <span id="mBest">0</span></span>
+  </div>
+
+  <!-- Поле гри -->
+  <div id="matchGrid" class="match-grid"></div>
+
+  <div class="center mt-2">
+    <button class="btn" id="btnStart" data-i18n="match.start">▶ Почати</button>
+  </div>
+</main>
+
+<!-- Результат -->
+<div class="modal-overlay" id="matchModal">
+  <div class="modal">
+    <h2 id="modalTitle">—</h2>
+    <p id="modalText" class="muted">—</p>
+    <p style="margin:8px 0"><span data-i18n="match.score">Рахунок</span>: <strong id="finalScore" style="font-size:1.4rem;color:var(--neon-green)">0</strong></p>
+    <div>
+      <button class="btn" id="btnNextLevel" style="display:none" data-i18n="match.next">Далі →</button>
+      <button class="btn btn--ghost" onclick="location.reload()" data-i18n="match.again">🔄 Ще раз</button>
+    </div>
+  </div>
+</div>
+
+<script src="data.js?v=6"></script>
+<script src="core.js?v=6"></script>
+<script>
+/* =========================================================
+   MATCH — гра на пошук пар (dansk ↔ ukrainsk)
+   =========================================================
+   ⚙️ Налаштування (пари, час, XP, бонуси) — у core.js,
+   об'єкт CONFIG.MATCH. Зміни числа там!
+   ========================================================= */
+
+const t = k => I18N[getLang()][k];
+
+const grid    = document.getElementById("matchGrid");
+const M = CONFIG.MATCH;
+
+let level = 1, score = 0;
+let timeLeft = 0, timerId = null;
+let flipped = [];     // зараз відкриті (max 2) плитки
+let locked = false;   // блокування кліків під час перевірки
+let pairsLeft = 0;
+let gameActive = false;
+
+/* Слідкуємо за рекордом у HUD */
+function updateHUD() {
+  document.getElementById("mLevel").textContent = level;
+  document.getElementById("mScore").textContent = score;
+  document.getElementById("mTime").textContent  = timeLeft + "s";
+  document.getElementById("mBest").textContent  = getMatchHighScore();
+}
+
+/* Випадкове ціле [0, n) */
+function rnd(n) { return Math.floor(Math.random() * n); }
+
+/*
+  Будує дошку рівня:
+  1) беремо PAIRS_PER_LEVEL[level-1] випадкових слів
+  2) створюємо плитку-дану + плитку-українську для кожного
+  3) перемішуємо всі плитки
+*/
+function buildBoard() {
+  const pairCount = Math.min(M.PAIRS_PER_LEVEL[level - 1] || 16, Math.floor(WORDS.length / 2));
+  timeLeft = M.SECONDS_PER_LEVEL[level - 1] || 30;
+  pairsLeft = pairCount;
+  flipped = [];
+  locked = false;
+
+  // Випадкові слова
+  const pool = [...WORDS];
+  const chosen = [];
+  while (chosen.length < pairCount) {
+    chosen.push(pool.splice(rnd(pool.length), 1)[0]);
+  }
+
+  // Плитки: кожне слово двічі (da + uk)
+  const tiles = [];
+  chosen.forEach(w => {
+    tiles.push({ key: w.id, lang: "da", text: w.da });
+    tiles.push({ key: w.id, lang: "uk", text: w.uk });
+  });
+
+  // Перемішуємо
+  for (let i = tiles.length - 1; i > 0; i--) {
+    const j = rnd(i + 1);
+    [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+  }
+
+  // Малюємо сітку
+  grid.innerHTML = "";
+  tiles.forEach(tile => {
+    const el = document.createElement("button");
+    el.className = "match-tile";
+    el.dataset.key  = tile.key;
+    el.dataset.lang = tile.lang;
+    el.textContent = tile.text;
+    el.addEventListener("click", () => onTileClick(el));
+    grid.appendChild(el);
+  });
+
+  updateHUD();
+}
+
+/* Таймер рівня */
+function startTimer() {
+  clearInterval(timerId);
+  timerId = setInterval(() => {
+    timeLeft--;
+    updateHUD();
+    // Стиль: червоніє, коли часу мало
+    document.getElementById("mTime").parentElement.style.color =
+      timeLeft <= 10 ? "var(--danger)" : "";
+    if (timeLeft <= 0) {
+      clearInterval(timerId);
+      endGame(false);
+    }
+  }, 1000);
+}
+
+/* Клік по плитці */
+function onTileClick(el) {
+  if (locked || !gameActive) return;
+  if (el.classList.contains("matched") || el.classList.contains("selected")) return;
+
+  // Не дозволяємо відкрити ДВІ однакові мови (da+da) — але це лише підказка,
+  // пара засчитується тільки за збігом ключа + різних мов
+  el.classList.add("selected");
+  flipped.push(el);
+
+  if (flipped.length === 2) {
+    locked = true;
+    const [a, b] = flipped;
+
+    if (a.dataset.key === b.dataset.key && a.dataset.lang !== b.dataset.lang) {
+      // ✅ Пара знайдена!
+      setTimeout(() => {
+        a.classList.add("matched");
+        b.classList.add("matched");
+        a.classList.remove("selected");
+        b.classList.remove("selected");
+        flipped = [];
+        locked = false;
+
+        // Нараховуємо очки/XP
+        score += M.SCORE_PER_PAIR;
+        timeLeft += M.BONUS_PER_PAIR;   // бонусний час!
+        pairsLeft--;
+
+        // ✨ Літаючий XP + звичайний XP (mastery) за пару
+        const r = a.getBoundingClientRect();
+        showXPGain(r.left + r.width / 2, r.top, M.XP_PER_PAIR);
+        recordCorrectAnswer(a.dataset.key);   // XP і mastery у localStorage
+
+        updateHUD();
+
+        if (pairsLeft === 0) levelClear();
+      }, 350);
+    } else {
+      // ❌ Не пара — коротний "shake" і закриваємо
+      a.classList.add("wrong");
+      b.classList.add("wrong");
+      setTimeout(() => {
+        a.classList.remove("selected", "wrong");
+        b.classList.remove("selected", "wrong");
+        flipped = [];
+        locked = false;
+      }, 600);
+    }
+  }
+}
+
+/* Рівень пройдено */
+function levelClear() {
+  clearInterval(timerId);
+  gameActive = false;
+
+  // Бонус за рівень × номер рівня
+  const bonus = M.LEVEL_CLEAR_BONUS * level;
+  score += bonus;
+
+  const isLast = level >= M.PAIRS_PER_LEVEL.length;
+  saveMatchHighScore(score);
+
+  document.getElementById("modalTitle").textContent = t("match.clear");
+  document.getElementById("modalText").textContent =
+    "+" + bonus + " (" + t("match.level") + " " + level + ")";
+  document.getElementById("finalScore").textContent = score;
+  document.getElementById("btnNextLevel").style.display = isLast ? "none" : "inline-block";
+  document.getElementById("matchModal").classList.add("open");
+  updateHUD();
+}
+
+/* Час вийшов / кінець гри */
+function endGame(won) {
+  gameActive = false;
+  clearInterval(timerId);
+
+  const isNewBest = saveMatchHighScore(score);
+  document.getElementById("modalTitle").textContent =
+    isNewBest ? t("match.newbest") : t("match.over");
+  document.getElementById("modalText").textContent =
+    t("match.pairs_left") + pairsLeft + " • " + t("match.level") + " " + level;
+  document.getElementById("finalScore").textContent = score;
+  document.getElementById("btnNextLevel").style.display = "none";
+  document.getElementById("matchModal").classList.add("open");
+  updateHUD();
+}
+
+/* Наступний рівень */
+document.getElementById("btnNextLevel").addEventListener("click", () => {
+  document.getElementById("matchModal").classList.remove("open");
+  level++;
+  gameActive = true;
+  buildBoard();
+  startTimer();
+});
+
+/* Старт гри */
+document.getElementById("btnStart").addEventListener("click", () => {
+  document.getElementById("btnStart").style.display = "none";
+  gameActive = true;
+  buildBoard();
+  startTimer();
+});
+
+applyI18n();
+updateHUD();
+</script>
+</body>
+</html>

@@ -35,6 +35,22 @@ const CONFIG = {
     SPAWN_RAMP: 0.96,      // множник інтервалу після кожного правильного слова
     START_LIVES: 3,        // скільки життів на початку гри
   },
+
+  // ---- Налаштування гри Match (match.html) ----
+  MATCH: {
+    // Скільки пар слів на кожному рівні (рівень = індекс + 1)
+    PAIRS_PER_LEVEL: [6, 8, 10, 12, 14, 16],
+    // Скільки секунд дається на кожен рівень (менше = складніше)
+    SECONDS_PER_LEVEL: [45, 45, 40, 40, 35, 35],
+    // Бонусні секунди за кожне знайдене ПАРУ
+    BONUS_PER_PAIR: 1,
+    // XP за кожне знайдене пару
+    XP_PER_PAIR: 10,
+    // Очки: пара + бонус за швидкість ( solution time )
+    SCORE_PER_PAIR: 100,
+    // Очки за завершення рівня (× номер рівня)
+    LEVEL_CLEAR_BONUS: 200,
+  },
 };
 // ----------------------------------------------------------
 
@@ -227,6 +243,12 @@ const I18N = {
     "common.levelup": "🎉 НОВИЙ РІВЕНЬ!",
     "common.xpgain": "XP",
     "gram.sub": "Уся центральна данська граматика в одному місці. Обери тему зліва.",
+    "match.title": "🧩 Match", "match.sub": "Знайди пари: данське слово + український переклад — до кінця часу!",
+    "match.level": "Рівень", "match.score": "Рахунок", "match.time": "Час", "match.best": "Рекорд",
+    "match.start": "▶ Почати", "match.newbest": "🏆 НОВИЙ РЕКОРД!",
+    "match.over": "⏰ Час вийшов!", "match.clear": "🎉 Рівень пройдено!",
+    "match.next": "Далі →", "match.again": "🔄 Ще раз",
+    "match.pairs_left": "Пар залишилось: ",
   },
   da: {
     "nav.home": "Hjem", "nav.cards": "Kort", "nav.quiz": "Quiz", "nav.blast": "Word Blast",
@@ -261,6 +283,12 @@ const I18N = {
     "blast.xp_label": "Optjent XP: ", "blast.again": "Spil igen 🔄",
     "blast.input_ph": "Skriv oversættelsen og tryk Enter…",
     "blast.nice": "💪 Ramt! Næste ord…", "blast.miss": "❌ Forbi! Prøv igen…",
+    "match.title": "🧩 Match", "match.sub": "Find parrene: dansk ord + ukrainsk oversættelse — før tiden løber ud!",
+    "match.level": "Niveau", "match.score": "Score", "match.time": "Tid", "match.best": "Rekord",
+    "match.start": "▶ Start", "match.newbest": "🏆 NY REKORD!",
+    "match.over": "⏰ Tiden er gået!", "match.clear": "🎉 Niveau klaret!",
+    "match.next": "Videre →", "match.again": "🔄 Igen",
+    "match.pairs_left": "Par tilbage: ",
     "common.lang": "Sprog",
     "common.levelup": "🎉 NYT NIVEAU!",
     "common.xpgain": "XP",
@@ -397,4 +425,32 @@ function showXPGain(x, y, amount) {
   document.body.appendChild(el);
   // Після анімації видаляємо елемент з DOM
   el.addEventListener("animationend", () => el.remove());
+}
+
+/* =========================================================
+   MATCH — рекорди (high score) у localStorage
+   =========================================================
+   Зберігаємо найкращий рахунок гри Match окремим ключем,
+   щоб скидання навчального прогресу його не чіпало.
+   ========================================================= */
+const MATCH_HIGHSCORE_KEY = "nordicboost_match_highscore";
+
+/* Читає рекорд (0, якщо ще не грали) */
+function getMatchHighScore() {
+  try {
+    return Number(localStorage.getItem(MATCH_HIGHSCORE_KEY)) || 0;
+  } catch (e) { return 0; }
+}
+
+/* Зберігає рекорд, якщо рахунок більший за попередній.
+   Повертає true, якщо встановлено НОВИЙ рекорд. */
+function saveMatchHighScore(score) {
+  try {
+    const best = getMatchHighScore();
+    if (score > best) {
+      localStorage.setItem(MATCH_HIGHSCORE_KEY, String(score));
+      return true;   // новий рекорд!
+    }
+    return false;
+  } catch (e) { return false; }
 }
