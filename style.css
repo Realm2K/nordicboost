@@ -694,3 +694,11 @@ body::before {
 .city-item__price { font-weight: 700; color: #ffd76e; }
 .city-item__price--poor { color: #ff9db1; }
 .city-item__price--locked { color: #ff9db1; font-size: .8rem; }
+
+/* ===== Skatte-panel + by-visning ===== */
+.city-tax-panel { margin: 12px 0; padding: 14px 16px; }
+.city-tax-row {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.city-tax-row + .city-tax-row { margin-top: 10px; }
+#taxSlider { flex: 1; min-width: 160px; accent-color: var(--neon-green, #39ff88); }
